@@ -1,0 +1,27 @@
+#!/bin/bash
+
+version=$1
+
+if [ "$version" = "" ]; then
+    echo "Usage: publish <version>"
+    exit
+fi
+
+if [ "$version" = "snapshot" ]; then
+    version=`date +%Y%m%d`
+fi
+
+cd /tmp
+
+cvs -d /usr/local/cvsroot co gmane/weft
+
+mv gmane/weft weft-$version
+cd weft-$version
+autoconf
+cd ..
+tar czvf weft-$version.tar.gz weft-$version
+rm -r weft-$version
+mv weft-$version.tar.gz ~www/weaver/html
+cd ~www/weaver/html
+rm -f weft-snapshot.tar.gz 
+ln -s weft-$version.tar.gz weft-snapshot.tar.gz 

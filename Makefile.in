@@ -1,0 +1,25 @@
+GLIB_CFLAGS = @GLIB_CFLAGS@
+GLIB_CONFIG = @GLIB_CONFIG@
+GLIB_LIBS = @GLIB_LIBS@
+GMIME_CONFIG = $(X11BASE)/bin/gmime-config
+GMIME_CFLAGS = `$(GMIME_CONFIG) --cflags`
+GMIME_LIBS = `$(GMIME_CONFIG) --libs`
+
+HEADER_FILES=config.h ../mdb/util.h hash.h weaver.h input.h
+
+CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) -g -O3
+LDFLAGS=@LDFLAGS@ $(GMIME_LIBS)
+CC = @CC@ $(CPPFLAGS)
+
+all: weft
+
+weft.o: weft.c
+
+weft: weft.o
+	$(CC) $(CPPFLAGS) -o weft $(LDFLAGS) weft.o
+
+clean:
+	$(RM) indexer *.o
+
+TAGS: *.h *.c
+	etags *.[ch]
