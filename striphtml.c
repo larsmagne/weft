@@ -51,7 +51,6 @@ stripHtml(const char* htmlBuf, int htmlBufLen, const char* filename)
   htmlParserCtxtPtr ctxt = htmlCreateMemoryParserCtxt(htmlBuf, htmlBufLen);
   int retcode = htmlParseDocument(ctxt);
   htmlDoc = ctxt->myDoc;
-  fprintf(stderr, "retcode: %d  htmlDoc: %p\n", retcode, htmlDoc);
   if (retcode >= 0 && htmlDoc != 0) {
     strippedDoc = stripHtmlDoc(htmlDoc);
     htmlSaveFile(filename, strippedDoc);
