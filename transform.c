@@ -16,6 +16,7 @@
 #include "config.h"
 #include "formatters.h"
 #include "weft.h"
+#include "transform.h"
 #include "striphtml.h"
 
 typedef struct {
@@ -29,11 +30,11 @@ typedef struct {
 } formatter;
 
 formatter wanted_headers[] = {
-  {"Date", image_box_start},
+  {"From", image_box_start},
   {"X-Face", xface_displayer},
   {"Face", face_displayer},
   {"From", from_picon_displayer},
-  {"Date", image_box_end},
+  {"From", image_box_end},
   {"From", from_formatter},
   {"Subject", subject_formatter},
   {"Newsgroups", newsgroups_formatter},
@@ -185,7 +186,7 @@ char *convert_to_utf8(const char *string, const char *charset) {
   iconv_t local_to_utf8;
   char *result;
 
-  g_mime_charset_init();
+  //g_mime_charset_init();
 	
   utf8 = g_mime_charset_name("utf-8");
   local = g_mime_charset_name(charset);
@@ -200,7 +201,7 @@ void transform_simple_part(FILE *output, const char *output_file_name,
 			   GMimePart* part) {
   const GMimeContentType* ct = 0;
   const gchar* content = 0;
-  int contentLen = 0;
+  long contentLen = 0;
   int i = 0;
   char content_type[128];
   const char *part_type;
@@ -284,85 +285,91 @@ void format_file(FILE *output, char *type, const char *value) {
   fclose(file);
 }
 
-void transform_part(FILE *output, const char *output_file_name,
-		    GMimePart *mime_part) {
+void transform_multipart(FILE *output, const char *output_file_name,
+			 GMimeMultipart *mime_part) {
   const GMimeContentType* ct = 0;
+  GList *child;
+  GMimePart *preferred = NULL;
+  char *type, *subtype = NULL;
 
-  if (mime_part->children) {
-    GList *child;
-    GMimePart *preferred = NULL;
-    char *type, *subtype = NULL;
+  //ct = g_mime_part_get_content_type(mime_part);
 
-    ct = g_mime_part_get_content_type(mime_part);
+  if (ct != NULL) 
+    subtype = ct->subtype;
 
-    if (ct != NULL) 
-      subtype = ct->subtype;
+  if (subtype == NULL)
+    subtype = "mixed";
 
-    if (subtype == NULL)
-      subtype = "mixed";
-
-    if (! strcmp(subtype, "alternative")) {
-      /* This is multipart/alternative, so we need to decide which
-	 part to output. */
+  if (! strcmp(subtype, "alternative")) {
+    /* This is multipart/alternative, so we need to decide which
+       part to output. */
       
-      child = mime_part->children;
-      while (child) {
-	ct = g_mime_part_get_content_type(child->data);
-	if (ct == NULL) {
-	  type = "text";
-	  subtype = "plain";
-	} else {
-	  type = ct->type? ct->type: "text";
-	  subtype = ct->subtype? ct->subtype: "plain";
-	}
+    child = mime_part->subparts;
+    while (child) {
+      ct = g_mime_part_get_content_type(child->data);
+      if (ct == NULL) {
+	type = "text";
+	subtype = "plain";
+      } else {
+	type = ct->type? ct->type: "text";
+	subtype = ct->subtype? ct->subtype: "plain";
+      }
 	  
-	if (! strcmp(type, "multipart") ||
-	    ! strcmp(type, "message")) 
+      if (! strcmp(type, "multipart") ||
+	  ! strcmp(type, "message")) 
+	preferred = child->data;
+      else if (! strcmp(type, "text")) {
+	if (! strcmp(subtype, "html"))
 	  preferred = child->data;
-	else if (! strcmp(type, "text")) {
-	  if (! strcmp(subtype, "html"))
-	    preferred = child->data;
-	  else if (! strcmp(subtype, "plain") && preferred == NULL)
-	    preferred = child->data;
-	}
-	child = child->next;
-      }
-
-      if (! preferred) {
-	/* Use the last child as the preferred. */
-	child = mime_part->children;
-	while (child) {
+	else if (! strcmp(subtype, "plain") && preferred == NULL)
 	  preferred = child->data;
-	  child = child->next;
-	}
       }
+      child = child->next;
+    }
 
-      transform_part(output, output_file_name, preferred);
-
-    } else if (! strcmp(subtype, "digest")) {
-      /* multipart/digest message. */
-      GMimeContentType* ct;
-      child = mime_part->children;
+    if (! preferred) {
+      /* Use the last child as the preferred. */
+      child = mime_part->subparts;
       while (child) {
-	ct = g_mime_content_type_new_from_string("message/rfc822");
-	g_mime_part_set_content_type(child->data, ct);
-	transform_part(output, output_file_name, 
-		       (GMimePart *) child->data);
-	child = child->next;
-      }
-      
-    } else {
-      /* Multipart mixed and related. */
-      child = mime_part->children;
-      while (child) {
-	transform_part(output, output_file_name, 
-		       (GMimePart *) child->data);
+	preferred = child->data;
 	child = child->next;
       }
     }
+
+    transform_part(output, output_file_name, (GMimeObject *) preferred);
+
+  } else if (! strcmp(subtype, "digest")) {
+    /* multipart/digest message. */
+    GMimeContentType* ct;
+    child = mime_part->subparts;
+    while (child) {
+      ct = g_mime_content_type_new_from_string("message/rfc822");
+      g_mime_part_set_content_type(child->data, ct);
+      transform_part(output, output_file_name, 
+		     (GMimeObject *) child->data);
+      child = child->next;
+    }
+      
   } else {
-    transform_simple_part(output, output_file_name, mime_part);
+    /* Multipart mixed and related. */
+    child = mime_part->subparts;
+    while (child) {
+      transform_part(output, output_file_name, 
+		     (GMimeObject *) child->data);
+      child = child->next;
+    }
   }
+}
+
+void transform_part(FILE *output, const char *output_file_name,
+			 GMimeObject *mime_part) {
+  if (GMIME_IS_MULTIPART(mime_part)) {
+    transform_multipart(output, output_file_name, 
+			GMIME_MULTIPART(mime_part)); 
+  } else {
+    transform_simple_part(output, output_file_name, GMIME_PART(mime_part));
+  }
+
 }
 
 void transform_message(FILE *output, const char *output_file_name,
@@ -370,6 +377,8 @@ void transform_message(FILE *output, const char *output_file_name,
   int i;
   const char *header;
   const char *value;
+  time_t time;
+  int tz;
   
   format_file(output, "start_head", "");
 
@@ -379,12 +388,15 @@ void transform_message(FILE *output, const char *output_file_name,
     if (! strcmp(header, "Fromm")) /* This test is never true. */
       value = g_mime_message_get_sender(msg);
     else if (! strcmp(header, "Subject"))
-      value = g_mime_message_get_subject(msg);
+      value = g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
     else if (! strcmp(header, "Date")) {
-      value = g_mime_message_get_date_string(msg);
-    }
-    else
+      g_mime_message_get_date(msg, &time, &tz);
+      value = NULL;
+      if (time != 0) 
+	date_formatter(output, time, tz);
+    } else
       value = g_mime_message_get_header(msg, header);
+
     if (value != NULL) {
       //printf("%s: %s\n", header, value);
       /* Call the formatter function. */
@@ -396,7 +408,7 @@ void transform_message(FILE *output, const char *output_file_name,
   
   format_file(output, "stop_head", "");
 
-  transform_part(output, output_file_name, msg->mime_part);
+  transform_part(output, output_file_name,  msg->mime_part); 
 }
 
 
@@ -426,11 +438,12 @@ void transform_file(const char *input_file_name,
   }
 
   stream = g_mime_stream_fs_new(file);
-  msg = g_mime_parser_construct_message(stream);
+  msg = g_mime_parser_construct_message(g_mime_parser_new_with_stream(stream));
   g_mime_stream_unref(stream);
 
   if (msg != 0) {
-    gsubject = g_mime_message_get_subject(msg);
+    gsubject =
+      g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
     subject = malloc(strlen(gsubject) + 1);
     strcpy(subject, gsubject);
 
@@ -463,13 +476,13 @@ void transform_message_rfc822(FILE *output, char *content,
   const char *subject;
 
   stream = g_mime_stream_mem_new_with_buffer(content, strlen(content));
-  msg = g_mime_parser_construct_message(stream);
+  msg = g_mime_parser_construct_message(g_mime_parser_new_with_stream(stream));
   g_mime_stream_unref(stream);
 
   if (msg != 0) {
     ostring(output, "<hr class=\"rfc\">\n");
 
-    subject = g_mime_message_get_subject(msg);
+    subject = g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
 
     format_file(output, "preamble", subject);
 
