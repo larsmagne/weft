@@ -1,0 +1,9 @@
+weft is a program that takes a mail/news message and formats it for
+displaying on the web.
+
+Its main design goal was to be fast and simple.  
+
+It was written by and is copyright (c) Lars Magne Ingebrigtsen
+<larsi@gnus.org>.  It's released under the GNU General Public License,
+a copy of which is included in this package.
+
