@@ -21,7 +21,6 @@ initStripHtml()
     xmlDocPtr stripHtmlXsltDoc;
     stripHtmlXsltDoc = xmlParseMemory(striphtml_xsl, strlen(striphtml_xsl));
     stripHtmlXslt = xsltParseStylesheetDoc(stripHtmlXsltDoc);
-    xmlFreeDoc(stripHtmlXsltDoc);
   }
 }
 
