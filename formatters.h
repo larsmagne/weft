@@ -22,6 +22,7 @@ void from_picon_displayer (FILE *output, const char *from,
 void expiry_formatter (FILE *output, const char *expiry_string, 
 		       const char *output_file_name);
 void ostring(FILE *output, const char *string);
+void simple_filter(FILE *output, const char *string);
 void filter(FILE *output, const char *string);
 void compile_filters(void);
 void compile_words(void);
