@@ -1,0 +1,8 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<title>%s</title>
+<link href="http://gmane.org/img/gmane.css" rel="stylesheet" type="text/css">
+<link rel="SHORTCUT ICON" href="http://gmane.org/favicon.ico">
+</html>
+<body>
