@@ -15,6 +15,7 @@
 #include <magick/api.h>
 #include <sys/stat.h>
 #include <regex.h>
+#include <gcrypt.h>
 
 #include "config.h"
 #include "weft.h"
@@ -34,14 +35,14 @@ typedef struct {
 } char_filter_spec;
 
 string_filter_spec string_filters[] = {
-  {":-)", "<img alt=\":-)\" src=\"/img/smilies/smile.png\">"},
-  {";-)", "<img alt=\";-)\" src=\"/img/smilies/blink.png\">"},
-  {":-]", "<img alt=\":-]\" src=\"/img/smilies/forced.png\">"},
-  {"8-)", "<img alt=\"8-)\" src=\"/img/smilies/braindamaged.png\">"},
-  {":-|", "<img alt=\":-|\" src=\"/img/smilies/indifferent.png\">"},
-  {":-(", "<img alt=\":-(\" src=\"/img/smilies/sad.png\">"},
-  {":-{", "<img alt=\":-{\" src=\"/img/smilies/frown.png\">"},
-  {"(-:", "<img alt=\"(-:\" src=\"/img/smilies/reverse-smile.png\">"},
+  {":-)", "<img alt=\":-)\" src=\"http://news.gmane.org/img/smilies/smile.png\">"},
+  {";-)", "<img alt=\";-)\" src=\"http://news.gmane.org/img/smilies/blink.png\">"},
+  {":-]", "<img alt=\":-]\" src=\"http://news.gmane.org/img/smilies/forced.png\">"},
+  {"8-)", "<img alt=\"8-)\" src=\"http://news.gmane.org/img/smilies/braindamaged.png\">"},
+  {":-|", "<img alt=\":-|\" src=\"http://news.gmane.org/img/smilies/indifferent.png\">"},
+  {":-(", "<img alt=\":-(\" src=\"http://news.gmane.org/img/smilies/sad.png\">"},
+  {":-{", "<img alt=\":-{\" src=\"http://news.gmane.org/img/smilies/frown.png\">"},
+  {"(-:", "<img alt=\"(-:\" src=\"http://news.gmane.org/img/smilies/reverse-smile.png\">"},
   {NULL, NULL}
 };
 
@@ -54,13 +55,14 @@ char_filter_spec char_filters[] = {
 };
 
 string_filter_spec regex_filters[] = {
-  {"-[a-zA-Z0-9/+]*@public\\.gmane\\.org", "@..."},
+  {"\\([-a-zA-Z0-9/+._]*\\)-[a-zA-Z0-9/+]*@public\\.gmane\\.org", "<a target=\"_top\" href=\"http://gmane.org/get-address.php?address=\\0\">\\1@...</a>"},
   {"\\(\\*[a-zA-Z0-9.]*\\*\\)\\([^a-zA-Z0-9]\\)", "<b>\\1</b>\\2"},
   {"\\(/[a-zA-Z0-9.][a-zA-Z0-9.]*/\\)\\([^a-zA-Z0-9]\\)", "<i>\\1</i>\\2"},
   {"_\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(_[^a-zA-Z0-9]\\)", "_<u>\\1</u>\\2"},
   {"-\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(-[^a-zA-Z0-9]\\)", "-<strike>\\1</strike>\\2"},
   {"http://[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
   {"www\\.[^ \n\t\"<>()]*", "<a href=\"http://\\0\" target=\"_top\">\\0</a>"},
+  {"\n *\n\\( *\n\\)*", "\n\n"},
   {NULL, NULL}
 };
 
@@ -70,6 +72,189 @@ typedef struct {
 } compiled_filter_spec;
 
 static compiled_filter_spec *compiled_filters;
+
+/* The same as malloc, but returns a char*, and clears the memory. */
+char *cmalloc(int size) {
+  char *b = (char*)malloc(size);
+  bzero(b, size);
+  return b;
+}
+
+char *base64_decode(const char *encoded) {
+  char *decoded = malloc(strlen(encoded + 1));
+  int state = 0, save = 0;
+
+  g_mime_utils_base64_decode_step(encoded, strlen(encoded), decoded,
+				  &state, &save);
+
+  return decoded;
+}
+
+char *get_key(void) {
+  FILE *file;
+  char buffer[1024];
+  char *key = NULL;
+  char *p;
+
+  if ((file = fopen(text_file("key"), "r")) != NULL) {
+    if (fgets(buffer, sizeof(buffer), file) != NULL) {
+      if ((p = strchr(buffer, '\n')) != NULL)
+	*p = 0;
+      key = malloc(strlen(buffer) + 1);
+      strcpy(key, buffer);
+    }
+    fclose(file);
+  }
+
+  return key;
+}
+
+char *decrypt(const char *encrypted, int length) {
+  GCRY_CIPHER_HD context;
+  char *decrypted = NULL;
+  char *key = get_key();
+  int res;
+
+  if (key == NULL)
+    return NULL;
+
+  decrypted = cmalloc(length + 1);
+
+  context = gcry_cipher_open(GCRY_CIPHER_BLOWFISH, GCRY_CIPHER_MODE_CBC, 0);
+  if (context == NULL)
+    return NULL;
+
+  res = gcry_cipher_setkey(context, key, strlen(key));
+  if (res == GCRYERR_SUCCESS)
+    res = gcry_cipher_setiv (context, NULL, 0);
+  
+  if (res != GCRYERR_SUCCESS) {
+    printf("Error %d\n", res);
+    return NULL;
+  }
+
+  gcry_cipher_decrypt(context, decrypted, length, encrypted, length);
+  if (res != GCRYERR_SUCCESS) {
+    printf("Error %d\n", res);
+    return NULL;
+  }
+
+  gcry_cipher_close(context);
+  free(key);
+  return decrypted; 
+}
+
+char *encrypt(const char *decrypted) {
+  GCRY_CIPHER_HD context;
+  char *encrypted = cmalloc(strlen(decrypted) + 1);
+  char *key = get_key();
+  int res;
+  int length = strlen(decrypted);
+
+  if (key == NULL)
+    return NULL;
+  
+  context = gcry_cipher_open(GCRY_CIPHER_BLOWFISH, GCRY_CIPHER_MODE_CBC, 0);
+  if (context == NULL)
+    return NULL;
+
+  res = gcry_cipher_setkey(context, key, strlen(key));
+  if (res == GCRYERR_SUCCESS)
+    res = gcry_cipher_setiv(context, NULL, 0);
+  
+  if (res != GCRYERR_SUCCESS) {
+    printf("Error %d\n", res);
+    return NULL;
+  }
+
+  res = gcry_cipher_encrypt(context, encrypted, length, decrypted, length);
+  if (res != GCRYERR_SUCCESS) {
+    printf("Error %d\n", res);
+    return NULL;
+  }
+
+  printf("Decrypted %s, encrypted %s\n", decrypted, encrypted);
+
+  gcry_cipher_close(context);
+  free(key);
+  return encrypted; 
+}
+
+char *public_to_address(const char *in_public) {
+  char *local = NULL;
+  char *base64 = NULL;
+  char *end, *start, *encrypted, *decrypted = NULL;
+  int i, base64_length, ended = 0;
+  char *public = malloc(strlen(in_public) + 1);
+  char *new_address, *p, *domain = NULL;
+  int length;
+
+  strcpy(public, in_public);
+
+  //printf("Got %s\n", public);
+
+  if ((end = strchr(public, '@')) == NULL)
+    return NULL;
+
+  *end = 0;
+
+  if ((start = strrchr(public, '-')) == NULL)
+    return NULL;
+
+  local = cmalloc(start - public + 1);
+  memcpy(local, public, start - public);
+
+  //printf("Local %s\n", local);
+
+  base64_length = end - start + 1 + 4;
+  base64 = cmalloc(base64_length);
+  memcpy(base64, start + 1, end - start);
+
+  //printf("base64 %s\n", base64);
+
+  length = strlen(base64) / 4 * 3;
+  //printf("Length %d\n", length);
+
+  for (i = 0; i < base64_length; i++) {
+    if (base64[i] == 0)
+      ended = 1;
+    if (ended) {
+      if (i % 4)
+	base64[i] = '=';
+      else
+	break;
+    }
+  }
+
+  //printf("New base64 %s\n", base64);
+
+  encrypted = base64_decode(base64);
+
+  //printf("Encrypted %s\n", encrypted);
+
+  domain = cmalloc(length + 20);
+  
+  for (i = 0; i <= length/8; i++) {
+    decrypted = decrypt(encrypted + i*8, 8);
+    strcat(domain, decrypted);
+    //printf("Decrypted %s\n", decrypted);
+  }
+
+  new_address = cmalloc(strlen(local) + strlen(domain) + 1 + 1);
+  sprintf(new_address, "%s@%s", local, domain);
+  if ((p = strchr(new_address, '\t')) != NULL)
+    *p = 0;
+
+  printf("new '%s'\n", new_address);
+
+  free(local);
+  free(base64);
+  free(encrypted);
+  free(decrypted);
+  free(domain);
+
+  return new_address;
+}
 
 void compile_filters(void) {
   int nfilters = 0, size, i;
@@ -115,16 +300,19 @@ void ostring(FILE *output, const char *string) {
   fwrite(string, strlen(string), 1, output);
 }
 
+void quote_char(char c, FILE *output) {
+  if (word_chars[(int)c] || c == '.')
+    putc(c, output);
+  else if (c == ' ')
+    putc('+', output);
+  else 
+    fprintf(output, "%%%02x", c);
+}
+
 void output_quote(FILE *output, const char *string) {
   unsigned char c;
-  while ((c = *string++) != 0) {
-    if (word_chars[c] || c == '.')
-      putc(c, output);
-    else if (c == ' ')
-      putc('+', output);
-    else 
-      fprintf(output, "%%%02x", c);
-  }
+  while ((c = *string++) != 0) 
+    quote_char(c, output);
 }
 
 int string_begins(const char *string, char *match) {
@@ -142,7 +330,7 @@ int string_begins(const char *string, char *match) {
 
 void filter(FILE *output, const char *string) {
   char c, prev = 0;
-  int i;
+  int i, j;
   compiled_filter_spec *cmfs;
   string_filter_spec *sfs;
   char_filter_spec *cfs;
@@ -174,9 +362,7 @@ void filter(FILE *output, const char *string) {
 
     if (start_filter == 0) {
       for (i = 0; regex_filters[i].from != NULL; i++) {
-	/* Dirty hack to allow the first regexp to follow
-	   a word character. */
-	if (i > 0 && word_chars[(unsigned int)prev])
+	if (word_chars[(unsigned int)prev])
 	  break;
 	cmfs = &compiled_filters[i];
 	if (regexec(&cmfs->from, string, 10, pmatch, 0) == 0) {
@@ -185,8 +371,13 @@ void filter(FILE *output, const char *string) {
 	    if (c == '\\' && (index = *(replace + 1)) != 0) {
 	      replace++;
 	      index -= '0';
-	      for (i = pmatch[index].rm_so; i < pmatch[index].rm_eo; i++)
-		fputc(*(string + i), output);
+	      for (j = pmatch[index].rm_so; j < pmatch[index].rm_eo; j++) {
+		if (i == 0 && index == 0)
+		  /* Dirty, dirty hack. */
+		  quote_char(*(string + j), output);
+		else
+		  fputc(*(string + j), output);
+	      }
 	    } else 
 	      fputc(*replace, output);
 	  }
@@ -227,7 +418,7 @@ void from_formatter (FILE *output, const char *from,
       name = "";
 
     if (strrchr(name, ')') == name + strlen(name) - 1) {
-      kname = malloc(strlen(name));
+      kname = malloc(strlen(name) + 1);
       strcpy(kname, name);
       *strrchr(kname, ')') = 0;
       name = kname;
@@ -304,6 +495,13 @@ void date_formatter (FILE *output, const char *date_string,
   ostring(output, "<br>\n");
 }
 
+void expiry_formatter (FILE *output, const char *expiry_string, 
+		       const char *output_file_name) {
+  ostring(output, "Expires: This article <a href=\"http://gmane.org/expiry.php\">expires</a> on ");
+  filter(output, expiry_string);
+  ostring(output, "<br>\n");
+}
+
 void write_xface(char *png_file_name) {
   ExceptionInfo exception;
   Image *image;
@@ -360,9 +558,9 @@ void xface_displayer (FILE *output, const char *xface,
      pixel to represent a 48x48 bitmap.  Yuck. */
   write_xface(png_file_name);
   
-  ostring(output, "<img alt=\"X-Face\" src=\"http://cache.gmane.org/");
+  ostring(output, "<a target=\"_top\" href=\"http://www.dairiki.org/xface/\"><img border=0 alt=\"X-Face\" src=\"http://cache.gmane.org/");
   uncached_name(output, png_file_name);
-  ostring(output, "\">\n");
+  ostring(output, "\"></a>\n");
 
   free(decoded);
   free(png_file_name);
@@ -394,9 +592,9 @@ void face_displayer (FILE *output, const char *face,
   fwrite(decoded, ndecoded, 1, png);
   fclose(png);
 
-  ostring(output, "<img alt=\"Face\" src=\"http://cache.gmane.org/");
+  ostring(output, "<a target=\"_top\" href=\"http://quimby.gnus.org/circus/face/\"><img border=0 alt=\"Face\" src=\"http://cache.gmane.org/");
   uncached_name(output, png_file_name);
-  ostring(output, "\">\n");
+  ostring(output, "\"></a>\n");
 
  out:
   free(decoded);
@@ -451,9 +649,9 @@ void output_copy_file(FILE *output, const char *output_file_name,
   snprintf(gif_file_name, len, "%s-picon-%03d.gif", 
 	   output_file_name, picon_number);
 
-  ostring(output, "<img alt=\"Picon\" src=\"http://cache.gmane.org/");
+  ostring(output, "<a target=\"_top\" href=\"http://ftp.cs.indiana.edu/pub/faces/picons/\"><img border=0 alt=\"Picon\" src=\"http://cache.gmane.org/");
   uncached_name(output, gif_file_name);
-  ostring(output, "\">\n");
+  ostring(output, "\"></a>\n");
 
   if ((in = fopen(file_name, "r")) == NULL)
     goto out;
@@ -488,6 +686,7 @@ void from_picon_displayer(FILE *output, const char *from,
   InternetAddressList *iaddr_list;
   char *address, *raddress, *p, *user;
   char domains[10240], users[10240], file[10240];
+  char *new_address;
   
   if (from == NULL)
     return;
@@ -503,6 +702,12 @@ void from_picon_displayer(FILE *output, const char *from,
 
     internet_address_set_name(iaddr, NULL);
     address = internet_address_to_string(iaddr, FALSE);
+
+    if (strstr(address, "@public.gmane.org")) {
+      new_address = public_to_address(address);
+      if (new_address != NULL)
+	address = new_address;
+    }
 
     raddress = reverse_address(address);
 
