@@ -8,3 +8,5 @@ config.cache
 Makefile
 weaverd
 weft
+weft-prod
+weftd

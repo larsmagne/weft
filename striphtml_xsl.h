@@ -15,7 +15,7 @@ const char striphtml_xsl[] =
   "<!-- The list of elements in the match attribute isn't complete -->\n"
   "<xsl:template match=\"h1|h2|h3|h4|h5|h6|p|a|div|ul|li|ol|table|tr|td|br\">\n"
   "  <xsl:element name=\"{name(.)}\">\n"
-  "    <xsl:copy-of select=\"@*[name() != 'background' and name() != 'src']\"/>\n"
+  "    <xsl:copy-of select=\"@*[name() != 'background' and name() != 'src' and name() != 'style' and name() != 'id']\"/>\n"
   "    <xsl:apply-templates/>\n"
   "  </xsl:element>\n"
   "</xsl:template>\n"

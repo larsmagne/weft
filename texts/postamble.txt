@@ -1,2 +1,5 @@
+<script>
+document.domain = 'gmane.org';
+</script>
 </body>
 </html>
