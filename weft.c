@@ -136,6 +136,8 @@ int main(int argc, char **argv)
 
   dirn = parse_args(argc, argv);
 
+  compile_filters();
+
   if (0) {
     file = "/mnt/var/spool/news/articles/gmane/discuss/4482";
     output_file_name = get_cache_file_name(file);
