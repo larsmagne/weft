@@ -32,9 +32,7 @@ formatter wanted_headers[] = {
   {"Subject", subject_formatter},
   {"Newsgroups", newsgroups_formatter},
   {"Date", date_formatter},
-#if 0
   {"X-Face", xface_displayer},
-#endif
   {"Face", face_displayer},
   {NULL, NULL}};
 
@@ -42,7 +40,9 @@ char *preferred_alternatives[] = {"text/html", "text/plain", NULL};
 
 void transform_text_plain(FILE *output, const char *content, 
 			  const char *output_file_name) {
+  ostring(output, "<pre>\n");
   filter(output, content);
+  ostring(output, "</pre>\n");
 }
 
 void transform_text_html(FILE *output, const char *content, 
@@ -220,7 +220,8 @@ void transform_file(const char *input_file_name,
   int offset;
   int file;
   FILE *output;
-  const char *subject;
+  char *subject;
+  const char *gsubject;
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
   int washed_subject = 0;
@@ -250,14 +251,17 @@ void transform_file(const char *input_file_name,
   g_mime_stream_unref(stream);
 
   if (msg != 0) {
-    subject = g_mime_message_get_subject(msg);
+    gsubject = g_mime_message_get_subject(msg);
+    subject = malloc(strlen(gsubject) + 1);
+    strcpy(subject, gsubject);
+
     format_file(output, "preamble", subject);
 
     transform_message(output, output_file_name, msg);
     
     g_mime_object_unref(GMIME_OBJECT(msg));
 
-    format_file(output, "postamble", "");
+    format_file(output, "postamble", subject);
     fclose(output);
   }
   close(file);

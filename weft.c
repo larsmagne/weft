@@ -133,7 +133,7 @@ int main(int argc, char **argv)
 
   dirn = parse_args(argc, argv);
 
-  if (1) {
+  if (0) {
     file = "/mirror/var/spool/news/articles/gmane/discuss/4482";
     output_file_name = get_cache_file_name(file);
     ensure_directory(output_file_name);

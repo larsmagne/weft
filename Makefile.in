@@ -8,16 +8,16 @@ GMIME_LIBS = `$(GMIME_CONFIG) --libs`
 HEADER_FILES=config.h ../mdb/util.h formatters.h
 
 CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) $(shell xml2-config --cflags) $(shell xslt-config --cflags) -g -O3
-LDFLAGS=@LDFLAGS@ $(GMIME_LIBS) $(shell xml2-config --libs) $(shell xslt-config --libs)
+LDFLAGS=@LDFLAGS@ $(GMIME_LIBS) $(shell xml2-config --libs) $(shell xslt-config --libs) -lcompface
 CC = @CC@ $(CPPFLAGS)
 
 all: weft
 
-weft.o: weft.c
+weft.o: weft.c config.h
 
-formatters.o: formatters.c
+formatters.o: formatters.c config.h
 
-transform.o: transform.c
+transform.o: transform.c config.h
 
 #stripHtml.o: stripHtml.c
 
