@@ -1,5 +1,7 @@
 #include "striphtml.h"
 #include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 main(int argc, char** argv)
 {
