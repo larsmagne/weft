@@ -42,7 +42,7 @@ formatter wanted_headers[] = {
 
 char *preferred_alternatives[] = {"text/html", "text/plain", NULL};
 
-char *message_id = NULL;
+const char *message_id = NULL;
 
 void limit_line_lengths(char *content) {
   int column = 0;
@@ -168,7 +168,7 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   int i = 0;
   char content_type[128];
   const char *part_type;
-  char *mcontent, *p, *ccontent;
+  char *mcontent, *p, *ccontent = NULL, *use_content;
   const char *charset = NULL;
 
   ct = g_mime_part_get_content_type(part);
@@ -195,11 +195,13 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   memcpy(mcontent, content, contentLen);
   *(mcontent + contentLen) = 0;
 
-
   if (strcmp(charset, "utf-8")) 
     ccontent = convert_to_utf8(mcontent, charset);
+
+  if (ccontent != NULL)
+    use_content = ccontent;
   else
-    ccontent = mcontent;
+    use_content = mcontent;
 
   for (i = 0; ; i++) {
     if ((part_type = part_transforms[i].content_type) == NULL) {
@@ -208,9 +210,7 @@ void transform_simple_part(FILE *output, const char *output_file_name,
 		       content_type, output_file_name);
       break;
     } else if (! strcmp(part_type, content_type)) {
-      (part_transforms[i].function)(output, 
-				    (ccontent? ccontent: mcontent),
-				    output_file_name);
+      (part_transforms[i].function)(output,  use_content, output_file_name);
       break;
     }
   }
