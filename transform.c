@@ -29,15 +29,16 @@ typedef struct {
 } formatter;
 
 formatter wanted_headers[] = {
+  {"Date", image_box_start},
+  {"X-Face", xface_displayer},
+  {"Face", face_displayer},
+  {"From", from_picon_displayer},
+  {"Date", image_box_end},
   {"From", from_formatter},
   {"Subject", subject_formatter},
   {"Newsgroups", newsgroups_formatter},
   {"Date", date_formatter},
-  {"Data", image_box_start},
-  {"X-Face", xface_displayer},
-  {"Face", face_displayer},
-  {"From", from_picon_displayer},
-  {"Data", image_box_end},
+  {"X-Gmane-Expiry", expiry_formatter},
   {NULL, NULL}};
 
 char *preferred_alternatives[] = {"text/html", "text/plain", NULL};
@@ -65,12 +66,46 @@ void limit_line_lengths(char *content) {
   }
 }
 
+void transform_message_rfc822(FILE *output, char *content, 
+			      const char *output_file_name);
+
+void remove_leading_blank_lines(char *content) {
+  char *s = content;
+  while (*s == '\n' || *s == ' ')
+    s++;
+  if (s != content)
+    memmove(content, s, strlen(s) + 1);
+}
+
+void remove_pgp_signed(char *content) {
+  char *s;
+  if (strstr(content, "-----BEGIN PGP SIGNED MESSAGE-----") == content &&
+      (s = strstr(content, "\n\n")) != NULL) {
+    /* First remove the PGP header. */
+    memmove(content, s, strlen(s) + 1);
+    /* Then remove the trailer. */
+    if ((s = strstr(content, "-----BEGIN PGP SIGNATURE-----")) != NULL) 
+      *s = 0;
+    /* Then unquote any "- " from lines. */
+    while ((s = strstr(content, "\n- ")) != NULL) {
+      memmove(s + 1, s + 3, strlen(s+3) + 1);
+      content = s;
+    }
+  }
+}
+
 void transform_text_plain(FILE *output, char *content, 
 			  const char *output_file_name) {
   if (content != NULL) {
     ostring(output, "<pre>\n");
-    limit_line_lengths(content);
-    filter(output, content);
+    remove_pgp_signed(content);
+    remove_leading_blank_lines(content);
+    if (strlen(content) < 1024*32) {
+      limit_line_lengths(content);
+      filter(output, content);
+    } else {
+      ostring(output, content);
+    }
     ostring(output, "</pre>\n");
   }
 }
@@ -115,7 +150,7 @@ void transform_binary(FILE *output, const char *content,
     ostring(output, "<div class=\"imgattachment\"><img src=\"http://cache.gmane.org/");
     uncached_name(output, bin_file_name);
     ostring(output, "\"></div>\n");
-  } else {
+  } else if (strcmp(content_type, "application/pgp-signature")) {
     ostring(output, "<div class=\"attachment\"><a href=\"http://cache.gmane.org/");
     uncached_name(output, bin_file_name);
     ostring(output, "\">Attachment");
@@ -142,6 +177,7 @@ typedef struct {
 transform part_transforms[] = {
   {"text/plain", transform_text_plain},
   {"text/html", transform_text_html},
+  {"message/rfc822", transform_message_rfc822},
   {NULL, NULL}};
 
 char *convert_to_utf8(char *string, const char *charset) {
@@ -238,8 +274,8 @@ void format_file(FILE *output, char *type, const char *value) {
   fclose(file);
 }
 
-void transform_part (FILE *output, const char *output_file_name,
-		     GMimePart *mime_part) {
+void transform_part(FILE *output, const char *output_file_name,
+		    GMimePart *mime_part) {
   const GMimeContentType* ct = 0;
 
   if (mime_part->children) {
@@ -293,6 +329,18 @@ void transform_part (FILE *output, const char *output_file_name,
 
       transform_part(output, output_file_name, preferred);
 
+    } else if (! strcmp(subtype, "digest")) {
+      /* multipart/digest message. */
+      GMimeContentType* ct;
+      child = mime_part->children;
+      while (child) {
+	ct = g_mime_content_type_new_from_string("message/rfc822");
+	g_mime_part_set_content_type(child->data, ct);
+	transform_part(output, output_file_name, 
+		       (GMimePart *) child->data);
+	child = child->next;
+      }
+      
     } else {
       /* Multipart mixed and related. */
       child = mime_part->children;
@@ -307,8 +355,8 @@ void transform_part (FILE *output, const char *output_file_name,
   }
 }
 
-void transform_message (FILE *output, const char *output_file_name,
-			GMimeMessage *msg) {
+void transform_message(FILE *output, const char *output_file_name,
+		       GMimeMessage *msg) {
   int i;
   const char *header;
   const char *value;
@@ -324,10 +372,12 @@ void transform_message (FILE *output, const char *output_file_name,
       value = g_mime_message_get_subject(msg);
     else
       value = g_mime_message_get_header(msg, header);
-    /* Call the formatter function. */
-    (wanted_headers[i].function)(output, 
-				 value,
-				 output_file_name);
+    if (value != NULL) {
+      /* Call the formatter function. */
+      (wanted_headers[i].function)(output, 
+				   value,
+				   output_file_name);
+    }
   }
   
   format_file(output, "stop_head", "");
@@ -391,3 +441,29 @@ void transform_file(const char *input_file_name,
   }
   close(file);
 }
+
+void transform_message_rfc822(FILE *output, char *content, 
+			      const char *output_file_name) {
+  GMimeStream *stream;
+  GMimeMessage *msg = 0;
+  const char *subject;
+
+  stream = g_mime_stream_mem_new_with_buffer(content, strlen(content));
+  msg = g_mime_parser_construct_message(stream);
+  g_mime_stream_unref(stream);
+
+  if (msg != 0) {
+    ostring(output, "<hr class=\"rfc\">\n");
+
+    subject = g_mime_message_get_subject(msg);
+
+    format_file(output, "preamble", subject);
+
+    transform_message(output, output_file_name, msg);
+    
+    format_file(output, "postamble", subject);
+    g_mime_object_unref(GMIME_OBJECT(msg));
+    ostring(output, "<hr class=\"rfc\">\n");
+  }
+}
+
