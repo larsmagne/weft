@@ -140,6 +140,22 @@ transform part_transforms[] = {
   {"text/html", transform_text_html},
   {NULL, NULL}};
 
+char *convert_to_utf8(char *string, const char *charset) {
+  const char *utf8, *local;
+  iconv_t local_to_utf8;
+  char *result;
+
+  g_mime_charset_init();
+	
+  utf8 = g_mime_charset_name("utf-8");
+  local = g_mime_charset_name(charset);
+  local_to_utf8 = iconv_open(utf8, local);
+
+  result = g_mime_iconv_strdup(local_to_utf8, string);
+
+  return result;
+}
+
 void transform_simple_part(FILE *output, const char *output_file_name,
 			   GMimePart* part) {
   const GMimeContentType* ct = 0;
@@ -148,17 +164,23 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   int i = 0;
   char content_type[128];
   const char *part_type;
-  char *mcontent, *p;
+  char *mcontent, *p, *ccontent;
+  const char *charset = NULL;
 
   ct = g_mime_part_get_content_type(part);
 
   if (ct == NULL ||
       ct->type == NULL ||
-      ct->subtype == NULL)
+      ct->subtype == NULL) {
     strcpy(content_type, "text/plain");
-  else
+  } else {
+    charset = g_mime_content_type_get_parameter(ct, "charset");
     snprintf(content_type, sizeof(content_type), "%s/%s", 
 	     ct->type, ct->subtype);
+  }
+
+  if (charset == NULL)
+    charset = "iso-8859-1";
 
   for (p = content_type; *p; p++) 
     *p = tolower(*p);
@@ -169,19 +191,25 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   memcpy(mcontent, content, contentLen);
   *(mcontent + contentLen) = 0;
 
+  if (strcmp(charset, "utf-8"))
+    ccontent = convert_to_utf8(mcontent, charset);
+  else
+    ccontent = mcontent;
+
   for (i = 0; ; i++) {
     if ((part_type = part_transforms[i].content_type) == NULL) {
-      transform_binary(output, mcontent, contentLen,
+      transform_binary(output, ccontent, contentLen,
 		       g_mime_part_get_filename(part),
 		       content_type, output_file_name);
       break;
     } else if (! strcmp(part_type, content_type)) {
-      (part_transforms[i].function)(output, mcontent, output_file_name);
+      (part_transforms[i].function)(output, ccontent, output_file_name);
       break;
     }
   }
 
   free(mcontent);
+  free(ccontent);
 }
 
 void format_file(FILE *output, char *type, const char *value) {
@@ -280,8 +308,10 @@ void transform_message (FILE *output, const char *output_file_name,
   format_file(output, "start_head", "");
 
   for (i = 0; (header = wanted_headers[i].header) != NULL; i++) {
-    if (! strcmp(header, "From"))
+    if (! strcmp(header, "Fromm")) /* This test is never true. */
       value = g_mime_message_get_sender(msg);
+    else if (! strcmp(header, "Subject"))
+      value = g_mime_message_get_subject(msg);
     else
       value = g_mime_message_get_header(msg, header);
     /* Call the formatter function. */
