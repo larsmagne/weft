@@ -5,8 +5,7 @@ void from_formatter (FILE *output, const char *value,
 		     const char *output_file_name);
 void subject_formatter (FILE *output, const char *value, 
 		     const char *output_file_name);
-void date_formatter (FILE *output, const char *value, 
-		     const char *output_file_name);
+void date_formatter (FILE *output, time_t time, int tz);
 void newsgroups_formatter (FILE *output, const char *value, 
 		     const char *output_file_name);
 void face_displayer (FILE *output, const char *face, 
