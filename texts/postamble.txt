@@ -1,6 +1,2 @@
-<script>
-if (parent)
-  parent.document.title = '%s';
-</script>
 </body>
 </html>
