@@ -60,7 +60,7 @@ string_filter_spec regex_filters[] = {
   {"\\(/[a-zA-Z0-9.][a-zA-Z0-9.]*/\\)\\([^a-zA-Z0-9]\\)", "<i>\\1</i>\\2"},
   {"_\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(_[^a-zA-Z0-9]\\)", "_<u>\\1</u>\\2"},
   {"-\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(-[^a-zA-Z0-9]\\)", "-<strike>\\1</strike>\\2"},
-  {"http://[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
+  {"https*://[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
   {"www\\.[^ \n\t\"<>()]*", "<a href=\"http://\\0\" target=\"_top\">\\0</a>"},
   {"\n *\n\\( *\n\\)*", "\n\n"},
   {NULL, NULL}
@@ -72,6 +72,10 @@ typedef struct {
 } compiled_filter_spec;
 
 static compiled_filter_spec *compiled_filters;
+
+static regex_t compiled_all_filters;
+
+void regex_filter(FILE *output);
 
 /* The same as malloc, but returns a char*, and clears the memory. */
 char *cmalloc(int size) {
@@ -262,6 +266,9 @@ void compile_filters(void) {
   compiled_filter_spec *cfilter;
   char from[1024], errbuf[1024];
   int errcode;
+  char regall[1024*20];
+
+  *regall = 0;
 
   for (i = 0; regex_filters[i].from != NULL; i++) 
     nfilters++;
@@ -276,6 +283,11 @@ void compile_filters(void) {
     *from = '^';
     strncpy(from + 1, filter->from, 1023);
     cfilter = &compiled_filters[i];
+    if (*regall)
+      strcat(regall, "\\|");
+    strcat(regall, "\\(");
+    strcat(regall, filter->from);
+    strcat(regall, "\\)");
     if ((errcode = regcomp(&cfilter->from, from, REG_ICASE))
 	== 0) 
       cfilter->to = filter->to;
@@ -284,6 +296,8 @@ void compile_filters(void) {
       printf("%s\n", errbuf);
     }
   }
+
+  regcomp(&compiled_all_filters, regall, REG_ICASE);
 }
 
 void compile_words(void) {
@@ -328,16 +342,11 @@ int string_begins(const char *string, char *match) {
     return 0;
 }
 
-void filter(FILE *output, const char *string) {
-  char c, prev = 0;
-  int i, j;
-  compiled_filter_spec *cmfs;
-  string_filter_spec *sfs;
+void simple_filter(FILE *output, const char *string) {
+  char c;
+  int i;
   char_filter_spec *cfs;
   int skip = 0;
-  regmatch_t pmatch[10];
-  char *replace;
-  int index;
 
   while ((c = *string) != 0) {
     skip = 0;
@@ -351,47 +360,9 @@ void filter(FILE *output, const char *string) {
       } 
     }
 
-    for (i = 0; string_filters[i].from != NULL; i++) {
-      sfs = &string_filters[i];
-      if (string_begins(string, sfs->from)) {
-	ostring(output, sfs->to);
-	skip = strlen(sfs->from);
-	goto next;
-      } 
-    }
-
-    if (start_filter == 0) {
-      for (i = 0; regex_filters[i].from != NULL; i++) {
-	if (word_chars[(unsigned int)prev])
-	  break;
-	cmfs = &compiled_filters[i];
-	if (regexec(&cmfs->from, string, 10, pmatch, 0) == 0) {
-
-	  for (replace = cmfs->to; (c = *replace) != 0; replace++) {
-	    if (c == '\\' && (index = *(replace + 1)) != 0) {
-	      replace++;
-	      index -= '0';
-	      for (j = pmatch[index].rm_so; j < pmatch[index].rm_eo; j++) {
-		if (i == 0 && index == 0)
-		  /* Dirty, dirty hack. */
-		  quote_char(*(string + j), output);
-		else
-		  fputc(*(string + j), output);
-	      }
-	    } else 
-	      fputc(*replace, output);
-	  }
-
-	  skip = pmatch[0].rm_eo - pmatch[0].rm_so;
-	  goto next;
-	} 
-      }
-    }
-    
   next:
     if (skip == 0) {
       string++;
-      prev = c;
       fputc(c, output);
     } else {
       string += skip;
@@ -399,14 +370,169 @@ void filter(FILE *output, const char *string) {
   }
 }
 
+char *scache = NULL;
+char *pcache = NULL;
+int scache_length = 0, scachep = 0;
+
+void osstring(const char *string, int filteredp) {
+  char *p;
+
+  while (scache_length < scachep + strlen(string) + 1) {
+    if (scache == 0) {
+      scache_length = 64;
+      scache = malloc(scache_length);
+      pcache = malloc(scache_length);
+    } else {
+      scache_length *= 4;
+      scache = realloc(scache, scache_length);
+      pcache = realloc(pcache, scache_length);
+    }
+  }
+
+  strcpy(scache + scachep, string);
+
+  /* Do accounting. */
+  for (p = pcache + scachep; p < pcache + scachep + strlen(string); p++)
+    *p = filteredp;
+
+  scachep += strlen(string);
+}
+
+void filter(FILE *output, const char *string) {
+  char c, prev = 0;
+  int i;
+  string_filter_spec *sfs;
+  char_filter_spec *cfs;
+  int skip = 0;
+  char cstring[2];
+
+  bzero(cstring, 2);
+  scachep = 0;
+
+  while ((c = *string) != 0) {
+    skip = 0;
+
+    for (i = start_filter; char_filters[i].from != 0; i++) {
+      cfs = &char_filters[i];
+      if (c == cfs->from && ! string_begins(string, "@public.gmane.org")) {
+	osstring(cfs->to, 1);
+	skip = 1;
+	goto next;
+      } 
+    }
+
+    for (i = 0; string_filters[i].from != NULL; i++) {
+      sfs = &string_filters[i];
+      if (string_begins(string, sfs->from)) {
+	osstring(sfs->to, 1);
+	skip = strlen(sfs->from);
+	goto next;
+      } 
+    }
+
+  next:
+    if (skip == 0) {
+      string++;
+      prev = c;
+      *cstring = c;
+      osstring(cstring, 0);
+    } else {
+      string += skip;
+    }
+  }
+
+  if (scache != NULL) {
+    if (start_filter == 0) 
+      regex_filter(output);
+    else 
+      fprintf(output, "%s", scache);
+  }
+}
+
+void regex_filter(FILE *output) {
+  int i, j;
+  char c;
+  compiled_filter_spec *cmfs;
+  regmatch_t pmatch[10];
+  char *replace;
+  int index, end;
+  char *string = scache;
+  char *pstring = pcache;
+
+  while (regexec(&compiled_all_filters, string, 10, pmatch, 0) == 0) {
+    for (i = 0 ; i < pmatch[0].rm_so; i++) {
+      fputc(*string, output);
+      string++;
+      pstring++;
+    }
+    /* If we have hit some pre-filtered stuff, we just skip it. */
+    if (*pstring != 0) {
+      while (*pstring != 0) {
+	fputc(*string, output);
+	string++;
+	pstring++;
+      }
+      continue;
+    }
+    for (i = 0; regex_filters[i].from != NULL; i++) {
+      cmfs = &compiled_filters[i];
+      if (regexec(&cmfs->from, string, 10, pmatch, 0) == 0) {
+	for (replace = cmfs->to; (c = *replace) != 0; replace++) {
+	  if (c == '\\' && (index = *(replace + 1)) != 0) {
+	    replace++;
+	    index -= '0';
+	    /* Find the end of the matching string, when we take into
+	       account the pre-filters. */
+	    for (end = pmatch[index].rm_so; end < pmatch[index].rm_eo; 
+		 end++) {
+	      if (*(pstring + end))
+		break;
+	    }
+	    for (j = pmatch[index].rm_so; j < end; j++) {
+	      if (i == 0 && index == 0)
+		/* Dirty, dirty hack. */
+		quote_char(*(string + j), output);
+	      else {
+		c = *(string + j);
+		fputc(c, output);
+	      }
+	    }
+	  } else 
+	    fputc(*replace, output);
+	}
+	for (end = pmatch[0].rm_so; end < pmatch[0].rm_eo; end++) {
+	  if (*(pstring + end))
+	    break;
+	}
+	string += end;
+	pstring += end;
+	break;
+      }
+    } 
+  }
+
+  while (*string) {
+    fputc(*string++, output);
+  }
+    
+}
+
 void from_formatter (FILE *output, const char *from, 
 		     const char *output_file_name) {
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
-  char *address, *name, *kname = NULL;
+  char *address, *name, *kname = NULL, *cfrom = NULL;
 
   if (from == "")
     from = "Unknown <nobody@nowhere.invalid>";
+
+  if (! strstr(from, "=?") && g_mime_utils_text_is_8bit(from, strlen(from)) &&
+      default_charset != NULL) {
+    cfrom = convert_to_utf8(from, default_charset);
+    if (cfrom != NULL) {
+      from = g_mime_utils_8bit_header_encode(cfrom);
+    }
+  }
 
   fprintf(output, "From: ");
 
@@ -441,10 +567,23 @@ void from_formatter (FILE *output, const char *from,
   }
 
   fprintf(output, "<br>\n");
+
+  if (cfrom != NULL)
+    free(cfrom);
 }
 
 void subject_formatter (FILE *output, const char *subject, 
 			const char *output_file_name) {
+  char *csubject = NULL;
+
+  if (! strstr(subject, "=?") && 
+      g_mime_utils_text_is_8bit(subject, strlen(subject)) &&
+      default_charset != NULL) {
+    csubject = convert_to_utf8(subject, default_charset);
+    if (csubject != NULL) 
+      subject = csubject;
+  }
+
   ostring(output, "Subject: ");
   if (message_id != NULL) {
     ostring(output,
@@ -457,6 +596,8 @@ void subject_formatter (FILE *output, const char *subject,
     filter(output, subject);
   }
   ostring(output, "<br>\n");
+  if (csubject != NULL)
+    free(csubject);
 }
 
 void newsgroups_formatter (FILE *output, const char *newsgroups, 
