@@ -21,11 +21,12 @@ char *picon_directory = PICON_DIRECTORY;
 int max_plain_line_length = MAX_PLAIN_LINE_LENGTH;
 int picon_number = 0;
 int binary_number = 0;
+char *default_charset = NULL;
 
 struct option long_options[] = {
   {"cache", 1, 0, 'c'},
   {"help", 1, 0, 'h'},
-  {"port", 1, 0, 'p'},
+  {"default-charset", 1, 0, 'd'},
   {0, 0, 0, 0}
 };
 
@@ -39,6 +40,10 @@ int parse_args(int argc, char **argv) {
     switch (c) {
     case 'c':
       cache_directory = optarg;
+      break;
+
+    case 'd':
+      default_charset = strdup(optarg);
       break;
 
     case 'h':
