@@ -14,7 +14,7 @@
 <!-- The list of elements in the match attribute isn't complete -->
 <xsl:template match="h1|h2|h3|h4|h5|h6|p|a|div|ul|li|ol|table|tr|td|br">
   <xsl:element name="{name(.)}">
-    <xsl:copy-of select="@*"/>
+    <xsl:copy-of select="@*[name() != 'background' and name() != 'src']"/>
     <xsl:apply-templates/>
   </xsl:element>
 </xsl:template>
