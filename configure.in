@@ -5,16 +5,8 @@ AC_ARG_PROGRAM
 AC_ISC_POSIX
 AC_PROG_YACC
 
-dnl Checks for header files.
-AC_CHECK_HEADERS(sys/mman.h)
-AC_CHECK_HEADERS(string.h)
-AC_CHECK_HEADERS(stdlib.h)
-AC_CHECK_HEADERS(ctype.h)
-AC_CHECK_HEADERS(time.h)
-AC_CHECK_HEADERS(alloca.h)
+rm -f configure.h
 
-AC_CHECK_FUNCS(memchr memrchr memmem strlen strcpy strncpy strlcpy stpcpy strcat strncat strlcat strchr strrchr strnstr strstr strncasestr strcasestr strncasecmp strcasecmp)
-	
 dnl We need at *least* glib 1.2.0
 AM_PATH_GLIB(1.2.0, ,
              AC_MSG_ERROR(Cannot find GLIB: Is glib-config in path?))
@@ -67,5 +59,7 @@ AC_CHECK_LIB(Magick, InitializeMagick, [], [
 #   echo "No INN library found."
 #   exit 1
 #fi
+
+echo "#define TEXTS_DIRECTORY \"$PWD/texts\"" >> configure.h
 	
 AC_OUTPUT(Makefile)
