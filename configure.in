@@ -34,6 +34,34 @@ if test "$GMIME" = ""; then
    exit 1
 fi
 	
+AC_CHECK_HEADERS(compface.h, [], [ echo "You need the compface header files"; exit 1 ])
+
+AC_CHECK_LIB(compface, UnGenFace, [], [
+	echo "No compface library found"
+        exit 1
+])
+	
+AC_CHECK_HEADERS(magick/api.h, [], [ echo "You need the ImageMagick header files"; exit 1 ])
+
+AC_CHECK_LIB(Magick, InitializeMagick, [], [
+	echo "No Magick library found"
+        exit 1
+])
+	
+#AC_CHECK_HEADERS(libxml/HTMLparser.h, [], [ echo "You need the xml2 header files"; exit 1 ])
+
+#AC_CHECK_LIB(xml2, htmlParseDoc, [], [
+#	echo "xml2 libraries not found"
+#        exit 1
+#])
+	
+#AC_CHECK_HEADERS(libxslt/xsltInternals.h, [], [ echo "You need the xslt header files"; exit 1 ])
+
+#AC_CHECK_LIB(xslt, xsltParseStylesheetDoc, [], [
+#	echo "xslt libraries not found"
+#        exit 1
+#])
+	
 #AC_CHECK_LIB(inn, parsedate, INN="-linn")
 #if test "$INN" = ""; then
 #   echo "No INN library found."
