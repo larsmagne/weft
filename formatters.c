@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "weft.h"
+#include "transform.h"
 
 int start_filter = 0;
 static char word_chars[256];
@@ -54,12 +55,12 @@ char_filter_spec char_filters[] = {
 
 string_filter_spec regex_filters[] = {
   {"-[a-zA-Z0-9/+]*@public\\.gmane\\.org", "@..."},
-  {"\\*[a-zA-Z0-9.]*\\*[^a-zA-Z0-9]", "<b>\\0</b>"},
-  {"/[a-zA-Z0-9.][a-zA-Z0-9.]*/[^a-zA-Z0-9]", "<i>\\0</i>"},
-  {"_[a-zA-Z0-9.][a-zA-Z0-9.]*_[^a-zA-Z0-9]", "<u>\\0</u>"},
-  {"-[a-zA-Z0-9.][a-zA-Z0-9.]*-[^a-zA-Z0-9]", "<strike>\\0</strike>"},
+  {"\\(\\*[a-zA-Z0-9.]*\\*\\)\\([^a-zA-Z0-9]\\)", "<b>\\1</b>\\2"},
+  {"\\(/[a-zA-Z0-9.][a-zA-Z0-9.]*/\\)\\([^a-zA-Z0-9]\\)", "<i>\\1</i>\\2"},
+  {"_\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(_[^a-zA-Z0-9]\\)", "_<u>\\1</u>\\2"},
+  {"-\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(-[^a-zA-Z0-9]\\)", "-<strike>\\1</strike>\\2"},
   {"http://[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
-  {"www\\.[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
+  {"www\\.[^ \n\t\"<>()]*", "<a href=\"http://\\0\" target=\"_top\">\\0</a>"},
   {NULL, NULL}
 };
 
@@ -112,6 +113,18 @@ void compile_words(void) {
 
 void ostring(FILE *output, const char *string) {
   fwrite(string, strlen(string), 1, output);
+}
+
+void output_quote(FILE *output, const char *string) {
+  unsigned char c;
+  while ((c = *string++) != 0) {
+    if (word_chars[c] || c == '.')
+      putc(c, output);
+    else if (c == ' ')
+      putc('+', output);
+    else 
+      fprintf(output, "%%%02x", c);
+  }
 }
 
 int string_begins(const char *string, char *match) {
@@ -240,9 +253,18 @@ void from_formatter (FILE *output, const char *from,
 }
 
 void subject_formatter (FILE *output, const char *subject, 
-		     const char *output_file_name) {
+			const char *output_file_name) {
   ostring(output, "Subject: ");
-  filter(output, subject);
+  if (message_id != NULL) {
+    ostring(output,
+	    "<a target=\"_top\" href=\"http://news.gmane.org/find-root.php?message_id=");
+    output_quote(output, message_id);
+    ostring(output, "\">");
+    filter(output, subject);
+    ostring(output, "</a>");
+  } else {
+    filter(output, subject);
+  }
   ostring(output, "<br>\n");
 }
 
@@ -264,8 +286,8 @@ void newsgroups_formatter (FILE *output, const char *newsgroups,
 
     first = 0;
 
-    ostring(output, "<a href=\"/");
-    ostring(output, group);
+    ostring(output, "<a href=\"http://news.gmane.org/");
+    output_quote(output, group);
     ostring(output, "\" target=\"_top\">");
     filter(output, group);
     ostring(output, "</a>");
@@ -338,7 +360,7 @@ void xface_displayer (FILE *output, const char *xface,
      pixel to represent a 48x48 bitmap.  Yuck. */
   write_xface(png_file_name);
   
-  ostring(output, "<img src=\"http://cache.gmane.org/");
+  ostring(output, "<img alt=\"X-Face\" src=\"http://cache.gmane.org/");
   uncached_name(output, png_file_name);
   ostring(output, "\">\n");
 
@@ -372,7 +394,7 @@ void face_displayer (FILE *output, const char *face,
   fwrite(decoded, ndecoded, 1, png);
   fclose(png);
 
-  ostring(output, "<img src=\"http://cache.gmane.org/");
+  ostring(output, "<img alt=\"Face\" src=\"http://cache.gmane.org/");
   uncached_name(output, png_file_name);
   ostring(output, "\">\n");
 
@@ -429,7 +451,7 @@ void output_copy_file(FILE *output, const char *output_file_name,
   snprintf(gif_file_name, len, "%s-picon-%03d.gif", 
 	   output_file_name, picon_number);
 
-  ostring(output, "<img src=\"http://cache.gmane.org/");
+  ostring(output, "<img alt=\"Picon\" src=\"http://cache.gmane.org/");
   uncached_name(output, gif_file_name);
   ostring(output, "\">\n");
 
