@@ -9,6 +9,7 @@
 #include <gmime/gmime.h>
 #include <sys/types.h>
 
+#include "configure.h"
 #include "config.h"
 #include "transform.h"
 #include "formatters.h"
