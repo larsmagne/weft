@@ -1,5 +1,5 @@
 # Turn on debugging
-CFLAGS+=-g
+#CFLAGS+=-g
 
 # Find libxml2 and libxslt header files and sharedlib
 CPPFLAGS+=$(shell xml2-config --cflags) $(shell xslt-config --cflags)
