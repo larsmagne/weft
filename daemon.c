@@ -48,6 +48,8 @@ int main(int argc, char **argv) {
   char *file_name, *output_file_name;
   struct stat stat_buf;
 
+  g_mime_init(GMIME_INIT_FLAG_UTF8);
+
   dirn = parse_args(argc, argv);
 
   compile_filters();

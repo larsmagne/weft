@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <gmime/gmime.h>
 
 #include "config.h"
 #include "transform.h"
@@ -13,6 +14,9 @@ int main(int argc, char **argv)
   int dirn;
   struct stat stat_buf;
   char *file, *output_file_name;
+
+  g_mime_init(GMIME_INIT_FLAG_UTF8);
+  //g_mime_init(0);
 
   dirn = parse_args(argc, argv);
 
