@@ -12,13 +12,12 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <gmime/gmime.h>
 
 #include "config.h"
 #include "transform.h"
 #include "formatters.h"
 #include "weft.h"
-
-#define TRUE 1
 
 union sock {
   struct sockaddr s;
