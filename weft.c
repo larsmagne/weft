@@ -120,6 +120,8 @@ void ensure_directory(const char *file_name) {
   while (*s != 0) {
     while (*s != 0 && *s != '/')
       s++;
+    if (*s == 0)
+      break;
     if (*s == '/') {
       *s = 0;
       make_directory(dir);
