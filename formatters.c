@@ -13,8 +13,10 @@
 #include <sys/types.h>
 #include <compface.h>
 #include <magick/api.h>
+#include <sys/stat.h>
 
 #include "config.h"
+#include "weft.h"
 
 typedef struct {
   char *from;
@@ -154,39 +156,35 @@ void date_formatter (FILE *output, const char *date_string,
   ostring(output, "<br>\n");
 }
 
-void write_image(char *png_file_name) {
-  ExceptionInfo
-    exception;
-
-  Image
-    *image,
-    *images,
-    *resize_image,
-    *thumbnails;
-
-  ImageInfo
-    *image_info;
+void write_xface(char *png_file_name) {
+  ExceptionInfo exception;
+  Image *image;
+  ImageInfo image_info;
+  int i;
 
   /*
     Initialize the image info structure and read an image.
   */
+
   InitializeMagick(png_file_name);
   GetExceptionInfo(&exception);
-  image_info=CloneImageInfo((ImageInfo *) NULL);
-  (void) strcpy(image_info->filename,"image.gif");
-  images=ReadImage(image_info,&exception);
-  if (exception.severity != UndefinedException)
-    CatchException(&exception);
-  if (images == (Image *) NULL)
-    exit(1);
 
-  /*
-    Write the image as MIFF and destroy it.
-  */
-  (void) strcpy(thumbnails->filename,"xface.png");
-  WriteImage(image_info,thumbnails);
-  DestroyImageList(thumbnails);
-  DestroyImageInfo(image_info);
+  GetImageInfo(&image_info);
+
+  for (i = 0; i < 48 * 48; i++)
+    F[i] = (F[i]? 0: 255);
+
+  image=ConstituteImage(48, 48, "A", CharPixel, F, &exception);
+
+  strcpy(image_info.filename, png_file_name);
+  strcpy(image->filename, png_file_name);
+  strcpy(image->magick, "PNG");
+
+  //DescribeImage(image, stdout, 0);
+
+  WriteImage(&image_info, image);
+  DestroyConstitute();
+  DestroyImage(image);
   DestroyExceptionInfo(&exception);
   DestroyMagick();
 }
@@ -194,7 +192,7 @@ void write_image(char *png_file_name) {
 void xface_displayer (FILE *output, const char *xface, 
 		     const char *output_file_name) {
   char *decoded;
-  char *suffix = "-xface.pbm";
+  char *suffix = "-xface.png";
   char *png_file_name = malloc(strlen(output_file_name) +
 			       strlen(suffix) + 1);
   char *dp, *p;
@@ -214,28 +212,11 @@ void xface_displayer (FILE *output, const char *xface,
 
   /* the compface library exports char F[], which uses a single byte per
      pixel to represent a 48x48 bitmap.  Yuck. */
+  write_xface(png_file_name);
   
-  for (i = 0, p = F; i < (48*48) / 8; ++i) {
-    int n, b;
-    /* reverse the bit order of each byte... */
-    for (b = n = 0; b < 8; ++b) {
-      n |= ((*p++) << b);
-    }
-    *dp++ = (char) n;
-  }
-
-  if ((png = fopen(png_file_name, "w")) == NULL) {
-    perror("weft face");
-    goto out;
-  }
-
-  ostring(png, "P4\n48 48\n");
-  fwrite(decoded, 48*48/8, 1, png);
-  fclose(png);
-
-  ostring(output, "<div class=\"xface\">\n<img src=\"http://cache.gmane.org/");
+  ostring(output, "<img src=\"http://cache.gmane.org/");
   uncached_name(output, png_file_name);
-  ostring(output, "\">\n</div>\n");
+  ostring(output, "\">\n");
 
  out:
   free(decoded);
@@ -268,11 +249,142 @@ void face_displayer (FILE *output, const char *face,
   fwrite(decoded, ndecoded, 1, png);
   fclose(png);
 
-  ostring(output, "<div class=\"face\">\n<img src=\"http://cache.gmane.org/");
+  ostring(output, "<img src=\"http://cache.gmane.org/");
   uncached_name(output, png_file_name);
-  ostring(output, "\">\n</div>\n");
+  ostring(output, "\">\n");
 
  out:
   free(decoded);
   free(png_file_name);
+}
+
+void image_box_start (FILE *output, const char *dummy, 
+		     const char *output_file_name) {
+  ostring(output, "<div class=\"face\">\n");
+}
+
+void image_box_end (FILE *output, const char *dummy, 
+		     const char *output_file_name) {
+  ostring(output, "</div>\n");
+}
+
+char *reverse_address(char *address) {
+  int len = strlen(address), i;
+  char *raddress = malloc(len + 1);
+  char *p = address + len;
+  char *q;
+
+  *raddress = 0;
+
+  for (i = len - 1; i >= 0; i--) {
+    if (address[i] == '.' || address[i] == '@') {
+      address[i] = 0;
+      if (*raddress)
+	strcat(raddress, "/");
+      strcat(raddress, address + i + 1);
+    }
+  }
+
+  if (*raddress)
+    strcat(raddress, "/");
+  strcat(raddress, address + i + 1);
+
+  return raddress;
+}
+
+static picon_number = 0;
+
+void output_copy_file(FILE *output, const char *output_file_name,
+		      const char *file_name) {
+  char *suffix = "-picon-.gif";
+  char *gif_file_name;
+  int len = strlen(output_file_name) + strlen(suffix) + 1 + 3;
+  FILE *in, *out;
+  char buffer[4096];
+  int count;
+
+  if (picon_number++ > 999)
+    return;
+  
+  gif_file_name = malloc(len);
+  snprintf(gif_file_name, len, "%s-picon-%03d.gif", 
+	   output_file_name, picon_number);
+
+  ostring(output, "<img src=\"http://cache.gmane.org/");
+  uncached_name(output, gif_file_name);
+  ostring(output, "\">\n");
+
+  if ((in = fopen(file_name, "r")) == NULL)
+    goto out;
+
+  if ((out = fopen(gif_file_name, "w")) == NULL) {
+    fclose(in);
+    goto out;
+  }
+
+  while ((count = fread(buffer, 1, 1, in)) != 0)
+    fwrite(buffer, count, 1, out);
+
+  fclose(in);
+  fclose(out);
+
+ out:
+  free(gif_file_name);
+}
+
+/* Return the size of a file. */
+loff_t file_size (char *file) {
+  struct stat stat_buf;
+  if (stat(file, &stat_buf) == -1) {
+    return 0;
+  }
+  return stat_buf.st_size;
+}
+
+void from_picon_displayer(FILE *output, const char *from, 
+		     const char *output_file_name) {
+  InternetAddress *iaddr;
+  InternetAddressList *iaddr_list;
+  char *address, *raddress;
+  char domains[10240], users[10240], *p, file[10240];
+  
+  if (from == NULL)
+    return;
+
+  snprintf(domains, sizeof(domains), "%s/%s/", picon_directory, 
+	   "domains");
+
+  snprintf(users, sizeof(users), "%s/%s/", picon_directory, 
+	   "users");
+
+  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
+    iaddr = iaddr_list->address;
+
+    internet_address_set_name(iaddr, NULL);
+    address = internet_address_to_string(iaddr, FALSE);
+
+    raddress = reverse_address(address);
+
+    strncat(domains, raddress, sizeof(domains));
+    strncat(users, raddress, sizeof(users));
+
+    if (strstr(domains, "//") ||
+	strstr(domains, ".") ||
+	strstr(users, "//") ||
+	strstr(users, "."))
+      goto out;
+
+    while (strlen(domains) > strlen(picon_directory)) {
+      snprintf(file, sizeof(file), "%s%s", domains, "/unknown/face.gif");
+      if (file_size(file) != 0) {
+	output_copy_file(output, output_file_name, file);
+      }
+      *strrchr(domains, '/') = 0;
+    }
+
+  out:
+    free(address);
+    free(raddress);
+    internet_address_list_destroy(iaddr_list);
+  }
 }

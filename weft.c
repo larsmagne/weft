@@ -15,6 +15,7 @@
 static char *cache_directory = CACHE_DIRECTORY;
 static char *spool_directory = SPOOL_DIRECTORY;
 static char *texts_directory = TEXTS_DIRECTORY;
+char *picon_directory = PICON_DIRECTORY;
 
 struct option long_options[] = {
   {"cache", 1, 0, 'c'},
@@ -134,7 +135,7 @@ int main(int argc, char **argv)
   dirn = parse_args(argc, argv);
 
   if (0) {
-    file = "/mirror/var/spool/news/articles/gmane/discuss/4482";
+    file = "/mnt/var/spool/news/articles/gmane/discuss/4482";
     output_file_name = get_cache_file_name(file);
     ensure_directory(output_file_name);
     transform_file(file, output_file_name);

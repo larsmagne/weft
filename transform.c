@@ -32,8 +32,11 @@ formatter wanted_headers[] = {
   {"Subject", subject_formatter},
   {"Newsgroups", newsgroups_formatter},
   {"Date", date_formatter},
+  {"Data", image_box_start},
   {"X-Face", xface_displayer},
   {"Face", face_displayer},
+  {"From", from_picon_displayer},
+  {"Data", image_box_end},
   {NULL, NULL}};
 
 char *preferred_alternatives[] = {"text/html", "text/plain", NULL};

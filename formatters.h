@@ -13,5 +13,11 @@ void face_displayer (FILE *output, const char *face,
 		     const char *output_file_name);
 void xface_displayer (FILE *output, const char *face, 
 		      const char *output_file_name);
+void image_box_start (FILE *output, const char *dummy, 
+		      const char *output_file_name);
+void image_box_end (FILE *output, const char *dummy, 
+		    const char *output_file_name);
+void from_picon_displayer (FILE *output, const char *from, 
+			   const char *output_file_name);
 
 #endif
