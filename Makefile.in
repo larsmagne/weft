@@ -1,11 +1,11 @@
 GLIB_CFLAGS = @GLIB_CFLAGS@
 GLIB_CONFIG = @GLIB_CONFIG@
 GLIB_LIBS = @GLIB_LIBS@
-GMIME_CONFIG = $(X11BASE)/bin/gmime-config
+GMIME_CONFIG = /usr/local/bin/gmime-config
 GMIME_CFLAGS = `$(GMIME_CONFIG) --cflags`
 GMIME_LIBS = `$(GMIME_CONFIG) --libs`
 
-HEADER_FILES=config.h ../mdb/util.h hash.h weaver.h input.h
+HEADER_FILES=config.h ../mdb/util.h formatters.h
 
 CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) -g -O3
 LDFLAGS=@LDFLAGS@ $(GMIME_LIBS)
@@ -15,8 +15,12 @@ all: weft
 
 weft.o: weft.c
 
-weft: weft.o
-	$(CC) $(CPPFLAGS) -o weft $(LDFLAGS) weft.o
+formatters.o: formatters.c
+
+transform.o: transform.c
+
+weft: weft.o formatters.o transform.o
+	$(CC) $(CPPFLAGS) -o weft $(LDFLAGS) weft.o formatters.o transform.o
 
 clean:
 	$(RM) indexer *.o
