@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "transform.h"
+#include "formatters.h"
 
 static char *cache_directory = CACHE_DIRECTORY;
 static char *spool_directory = SPOOL_DIRECTORY;
@@ -160,5 +161,6 @@ int main(int argc, char **argv)
       }
     }
   }
+  exit(0);
 }   
 

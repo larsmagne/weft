@@ -1,7 +1,7 @@
 #ifndef STRIPHTML_H
 #define STRIPHTML_H
 
-int stripHtml(const char* htmlBuf, int htmlBufLen, const char* filename);
+char *stripHtml(const char* htmlBuf, int htmlBufLen, int *length);
 
 
 #endif /* STRIPHTML_H */

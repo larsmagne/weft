@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "striphtml.h"
 #include <libxml/HTMLparser.h>
 #include <libxslt/xsltInternals.h>
@@ -49,20 +50,28 @@ stripHtmlDoc(xmlDocPtr htmlDoc)
   A stripped document is output even if HTML parsing errors are
   encountered.
 */
-int
-stripHtml(const char* htmlBuf, int htmlBufLen, const char* filename)
+htmlParserCtxtPtr
+htmlCreateDocParserCtxt(const char *cur, char *encoding);
+ 
+char *
+stripHtml(const char* htmlBuf, int htmlBufLen, int *length)
 {
   xmlDocPtr strippedDoc = 0;
   xmlDocPtr htmlDoc = 0;
-  htmlParserCtxtPtr ctxt = htmlCreateMemoryParserCtxt(htmlBuf, htmlBufLen);
-  int retcode = htmlParseDocument(ctxt);
+  htmlParserCtxtPtr ctxt = htmlCreateDocParserCtxt(htmlBuf, NULL);
+  char *result;
+  int len;
+
+  htmlParseDocument(ctxt);
+
   htmlDoc = ctxt->myDoc;
   if (htmlDoc != 0) {
     strippedDoc = stripHtmlDoc(htmlDoc);
-    htmlSaveFile(filename, strippedDoc);
+    htmlDocDumpMemory(strippedDoc, &result, &len);
     xmlFreeDoc(strippedDoc);
   }
   htmlFreeParserCtxt(ctxt);
-  return retcode;
+  *length = len;
+  return result;
 }
 

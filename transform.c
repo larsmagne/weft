@@ -50,9 +50,17 @@ void transform_text_plain(FILE *output, const char *content,
 
 void transform_text_html(FILE *output, const char *content, 
 			  const char *output_file_name) {
-#if 0
-  stripHtml(content, strlen(content), "-");
-#endif
+  char *clean;
+  int length;
+
+  ostring(output, "<p>\n");
+  start_filter = 3;
+  clean = stripHtml(content, strlen(content), &length);
+  *(clean+length) = 0;
+  filter(output, clean);
+  start_filter = 0;
+
+  free(clean);
 }
 
 void transform_binary(FILE *output, const char *content, 
@@ -132,9 +140,8 @@ void transform_part (FILE *output, const char *output_file_name,
 
   if (mime_part->children) {
     GList *child;
-    int i;
     GMimePart *preferred = NULL;
-    char *type, *subtype;
+    char *type, *subtype = NULL;
 
     ct = g_mime_part_get_content_type(mime_part);
 
@@ -220,18 +227,10 @@ void transform_file(const char *input_file_name,
 		    const char *output_file_name) {
   GMimeStream *stream;
   GMimeMessage *msg = 0;
-  int offset;
   int file;
   FILE *output;
   char *subject;
   const char *gsubject;
-  InternetAddress *iaddr;
-  InternetAddressList *iaddr_list;
-  int washed_subject = 0;
-  char *address, *at;
-  int i;
-  const char *header;
-  info_parameters info;
 
   if ((file = open(input_file_name, O_RDONLY)) == -1) {
     printf("Can't open %s\n", input_file_name);

@@ -7,8 +7,8 @@ GMIME_LIBS = `$(GMIME_CONFIG) --libs`
 
 HEADER_FILES=config.h ../mdb/util.h formatters.h
 
-CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) $(shell xml2-config --cflags) $(shell xslt-config --cflags) -g -O3
-LDFLAGS=@LDFLAGS@ $(GMIME_LIBS) $(shell xml2-config --libs) $(shell xslt-config --libs) -lcompface -lMagick
+CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) $(shell xml2-config --cflags) $(shell xslt-config --cflags) -g -O3 -Wall
+LDFLAGS=@LDFLAGS@ $(GMIME_LIBS) $(shell xml2-config --libs) $(shell xslt-config --libs) -lcompface -lMagick -lxml
 CC = @CC@ $(CPPFLAGS)
 
 all: weft
@@ -21,9 +21,16 @@ transform.o: transform.c config.h
 
 stripHtml.o: stripHtml.c
 
-weft: weft.o formatters.o transform.o striphtml.o
+# Implicit rule to create C string constants containing XSL files
+%_xsl.h: %.xsl
+	./embed.pl $<
+
+striphtml_xsl.h: embed.pl
+striphtml_xsl.h: striphtml.xsl
+
+weft: weft.o formatters.o transform.o striphtml.o striphtml_xsl.h
 	$(CC) $(CPPFLAGS) -o weft $(LDFLAGS) weft.o formatters.o\
-	 transform.o
+	 transform.o striphtml.o
 
 clean:
 	$(RM) indexer *.o

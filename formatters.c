@@ -18,6 +18,8 @@
 #include "config.h"
 #include "weft.h"
 
+int start_filter = 0;
+
 typedef struct {
   char *from;
   char *to;
@@ -58,12 +60,12 @@ int string_begins (const char *string, char *match) {
 
 void filter(FILE *output, const char *string) {
   char c;
-  int i, found;
+  int i;
   filter_spec *fs;
-  int skip;
+  int skip = 0;
 
   while ((c = *string) != 0) {
-    for (i = 0; filters[i].from != 0; i++) {
+    for (i = start_filter; filters[i].from != 0; i++) {
       fs = &filters[i];
       if ((skip = string_begins(string, fs->from)) != 0) {
 	ostring(output, fs->to);
@@ -124,7 +126,7 @@ void newsgroups_formatter (FILE *output, const char *newsgroups,
 		     const char *output_file_name) {
   int len = strlen(newsgroups);
   char *groups = malloc(len + 1);
-  char *group, *g, *cgroup;
+  char *group;
   int first = 1;
 
   ostring(output, "Newsgroups: ");
@@ -143,7 +145,7 @@ void newsgroups_formatter (FILE *output, const char *newsgroups,
     ostring(output, "\" target=\"_top\">");
     filter(output, group);
     ostring(output, "</a>");
-  } while (group = strtok(NULL, ", "));
+  } while ((group = strtok(NULL, ", ")) != NULL);
 
   ostring(output, "<br>\n");
   free(groups);
@@ -195,9 +197,7 @@ void xface_displayer (FILE *output, const char *xface,
   char *suffix = "-xface.png";
   char *png_file_name = malloc(strlen(output_file_name) +
 			       strlen(suffix) + 1);
-  char *dp, *p;
-  FILE *png;
-  int i;
+  char *dp;
 
   if (xface == NULL)
     return;
@@ -218,7 +218,6 @@ void xface_displayer (FILE *output, const char *xface,
   uncached_name(output, png_file_name);
   ostring(output, "\">\n");
 
- out:
   free(decoded);
   free(png_file_name);
 }
@@ -271,8 +270,6 @@ void image_box_end (FILE *output, const char *dummy,
 char *reverse_address(char *address) {
   int len = strlen(address), i;
   char *raddress = malloc(len + 1);
-  char *p = address + len;
-  char *q;
 
   *raddress = 0;
 
@@ -292,7 +289,7 @@ char *reverse_address(char *address) {
   return raddress;
 }
 
-static picon_number = 0;
+static int picon_number = 0;
 
 void output_copy_file(FILE *output, const char *output_file_name,
 		      const char *file_name) {
@@ -346,7 +343,7 @@ void from_picon_displayer(FILE *output, const char *from,
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
   char *address, *raddress;
-  char domains[10240], users[10240], *p, file[10240];
+  char domains[10240], users[10240], file[10240];
   
   if (from == NULL)
     return;
