@@ -1,6 +1,4 @@
-<script>
+<script type="text/javascript">
 document.domain = 'gmane.org';
 document.title = '%s';
 </script>
-</body>
-</html>
