@@ -16,6 +16,7 @@ libcompfaceg1-dev
 libmagick5-dev
 libxml2-dev
 xslt1-dev
+libgcrypt-dev
 
 Plus
 
