@@ -42,8 +42,14 @@ stripHtmlDoc(xmlDocPtr htmlDoc)
   The \a htmlBuf argument points to a character buffer, with length
   \a htmlBufLen, holding an HTML document to be stripped for unwanted
   tags.  The resulting stripped file, is written to \a filename.
+
+  The result code from htmlParseDocument is returned (0 for OK, and
+  -1 for parsing error).
+
+  A stripped document is output even if HTML parsing errors are
+  encountered.
 */
-void
+int
 stripHtml(const char* htmlBuf, int htmlBufLen, const char* filename)
 {
   xmlDocPtr strippedDoc = 0;
@@ -51,11 +57,12 @@ stripHtml(const char* htmlBuf, int htmlBufLen, const char* filename)
   htmlParserCtxtPtr ctxt = htmlCreateMemoryParserCtxt(htmlBuf, htmlBufLen);
   int retcode = htmlParseDocument(ctxt);
   htmlDoc = ctxt->myDoc;
-  if (retcode >= 0 && htmlDoc != 0) {
+  if (htmlDoc != 0) {
     strippedDoc = stripHtmlDoc(htmlDoc);
     htmlSaveFile(filename, strippedDoc);
     xmlFreeDoc(strippedDoc);
   }
   htmlFreeParserCtxt(ctxt);
+  return retcode;
 }
 
