@@ -42,6 +42,8 @@ formatter wanted_headers[] = {
 
 char *preferred_alternatives[] = {"text/html", "text/plain", NULL};
 
+char *message_id = NULL;
+
 void limit_line_lengths(char *content) {
   int column = 0;
   char *space = NULL;
@@ -65,10 +67,12 @@ void limit_line_lengths(char *content) {
 
 void transform_text_plain(FILE *output, char *content, 
 			  const char *output_file_name) {
-  ostring(output, "<pre>\n");
-  limit_line_lengths(content);
-  filter(output, content);
-  ostring(output, "</pre>\n");
+  if (content != NULL) {
+    ostring(output, "<pre>\n");
+    limit_line_lengths(content);
+    filter(output, content);
+    ostring(output, "</pre>\n");
+  }
 }
 
 void transform_text_html(FILE *output, const char *content, 
@@ -191,25 +195,29 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   memcpy(mcontent, content, contentLen);
   *(mcontent + contentLen) = 0;
 
-  if (strcmp(charset, "utf-8"))
+
+  if (strcmp(charset, "utf-8")) 
     ccontent = convert_to_utf8(mcontent, charset);
   else
     ccontent = mcontent;
 
   for (i = 0; ; i++) {
     if ((part_type = part_transforms[i].content_type) == NULL) {
-      transform_binary(output, ccontent, contentLen,
+      transform_binary(output, mcontent, contentLen,
 		       g_mime_part_get_filename(part),
 		       content_type, output_file_name);
       break;
     } else if (! strcmp(part_type, content_type)) {
-      (part_transforms[i].function)(output, ccontent, output_file_name);
+      (part_transforms[i].function)(output, 
+				    (ccontent? ccontent: mcontent),
+				    output_file_name);
       break;
     }
   }
 
   free(mcontent);
-  free(ccontent);
+  if (ccontent != NULL)
+    free(ccontent);
 }
 
 void format_file(FILE *output, char *type, const char *value) {
@@ -307,6 +315,8 @@ void transform_message (FILE *output, const char *output_file_name,
   
   format_file(output, "start_head", "");
 
+  message_id = g_mime_message_get_header(msg, "Message-ID");
+
   for (i = 0; (header = wanted_headers[i].header) != NULL; i++) {
     if (! strcmp(header, "Fromm")) /* This test is never true. */
       value = g_mime_message_get_sender(msg);
@@ -332,7 +342,7 @@ void transform_file(const char *input_file_name,
   GMimeMessage *msg = 0;
   int file;
   FILE *output;
-  char *subject;
+  char *subject, *s, c;
   const char *gsubject;
 
   if ((file = open(input_file_name, O_RDONLY)) == -1) {
@@ -364,8 +374,18 @@ void transform_file(const char *input_file_name,
 
     transform_message(output, output_file_name, msg);
     
+    /* FIXME */
     g_mime_object_unref(GMIME_OBJECT(msg));
 
+    s = subject;
+    while ((c = *s) != 0) {
+      if (! ((c >= '0' && c <= '9') ||
+	     (c >= 'a' && c <= 'z') ||
+	     (c >= 'A' && c <= 'Z') ||
+	     c == ':' || c == '.' || c == '?'))
+	*s = ' ';
+      s++;
+    }
     format_file(output, "postamble", subject);
     fclose(output);
   }
