@@ -7,3 +7,19 @@ It was written by and is copyright (c) 2003 Lars Magne Ingebrigtsen
 <larsi@gnus.org>.  It's released under the GNU General Public License,
 a copy of which is included in this package.
 
+weft requires the following libraries to compile (and I've given the
+Debian package names here):
+
+libgmime-dev
+libglib1.2-dev
+libcompfaceg1-dev
+libmagick5-dev
+libxml2-dev
+xslt1-dev
+libxml-dev
+
+Plus
+
+picons-*
+
+if you want to display picons.
