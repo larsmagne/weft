@@ -110,16 +110,21 @@ void transform_binary(FILE *output, const char *content,
   fclose(bin);
 
   if (strstr(content_type, "image/")) {
-    ostring(output, "<br><img src=\"http://cache.gmane.org/");
+    ostring(output, "<div class=\"imgattachment\"><img src=\"http://cache.gmane.org/");
     uncached_name(output, bin_file_name);
-    ostring(output, "\">");
+    ostring(output, "\"></div>\n");
   } else {
-    ostring(output, "<br><a href=\"http://cache.gmane.org/");
+    ostring(output, "<div class=\"attachment\"><a href=\"http://cache.gmane.org/");
     uncached_name(output, bin_file_name);
     ostring(output, "\">Attachment");
     if (attachment_name != NULL) 
       fprintf(output, " (%s)", attachment_name);
-    fprintf(output, "</a>: %s\n", content_type);
+    fprintf(output, "</a>: %s, ", content_type);
+    if (content_length < 8*1024) 
+      fprintf(output, "%d bytes", content_length);
+    else
+      fprintf(output, "%d KiB", content_length / 1024);
+    ostring(output, "</div>\n");
   }
 
  out:
