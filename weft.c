@@ -17,6 +17,7 @@ static char *cache_directory = CACHE_DIRECTORY;
 static char *spool_directory = SPOOL_DIRECTORY;
 static char *texts_directory = TEXTS_DIRECTORY;
 char *picon_directory = PICON_DIRECTORY;
+int max_plain_line_length = MAX_PLAIN_LINE_LENGTH;
 
 struct option long_options[] = {
   {"cache", 1, 0, 'c'},

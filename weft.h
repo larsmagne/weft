@@ -6,5 +6,6 @@ void uncached_name(FILE *output, const char *file_name);
 
 extern char *preamble_file_name;
 extern char *picon_directory;
+extern int max_plain_line_length;
 
 #endif

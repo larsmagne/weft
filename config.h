@@ -5,5 +5,6 @@
 #define SPOOL_DIRECTORY "/mnt/var/spool/news/articles"
 #define TEXTS_DIRECTORY "/home/larsi/gmane/weft/texts"
 #define PICON_DIRECTORY "/usr/lib/picons"
+#define MAX_PLAIN_LINE_LENGTH 90
 
 #endif

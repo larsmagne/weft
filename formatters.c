@@ -342,7 +342,7 @@ void from_picon_displayer(FILE *output, const char *from,
 		     const char *output_file_name) {
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
-  char *address, *raddress;
+  char *address, *raddress, *p, *user;
   char domains[10240], users[10240], file[10240];
   
   if (from == NULL)
@@ -377,6 +377,19 @@ void from_picon_displayer(FILE *output, const char *from,
 	output_copy_file(output, output_file_name, file);
       }
       *strrchr(domains, '/') = 0;
+    }
+
+    while (strstr(users, picon_directory)) {
+      snprintf(file, sizeof(file), "%s%s", users, "/face.gif");
+      if (file_size(file) != 0) {
+	output_copy_file(output, output_file_name, file);
+	break;
+      }
+      user = strrchr(users, '/');
+      *user++ = 0;
+      for (p = strrchr(users, '/') + 1; *user; )
+	*p++ = *user++;
+      *p = 0;
     }
 
   out:

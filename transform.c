@@ -11,6 +11,7 @@
 #include <gmime/gmime.h>
 #include <pwd.h>
 #include <sys/types.h>
+#include <ctype.h>
 
 #include "config.h"
 #include "formatters.h"
@@ -41,9 +42,31 @@ formatter wanted_headers[] = {
 
 char *preferred_alternatives[] = {"text/html", "text/plain", NULL};
 
-void transform_text_plain(FILE *output, const char *content, 
+void limit_line_lengths(char *content) {
+  int column = 0;
+  char *space = NULL;
+  char c;
+  
+  while ((c = *content) != 0) {
+    if (c == ' ') {
+      if (column > max_plain_line_length && space != NULL) {
+	*space = '\n';
+	column = content - space;
+      }
+      space = content;
+    } else if (c == '\n')
+      column = 0;
+    else
+      column++;
+
+    content++;
+  }
+}
+
+void transform_text_plain(FILE *output, char *content, 
 			  const char *output_file_name) {
   ostring(output, "<pre>\n");
+  limit_line_lengths(content);
   filter(output, content);
   ostring(output, "</pre>\n");
 }
@@ -63,8 +86,45 @@ void transform_text_html(FILE *output, const char *content,
   free(clean);
 }
 
+static int binary_number = 0;
+
 void transform_binary(FILE *output, const char *content, 
-			   const char *output_file_name) {
+		      int content_length, const char *attachment_name,
+		      const char *content_type,
+		      const char *output_file_name) {
+  char *suffix = "-.bin";
+  int len = strlen(output_file_name) + strlen(suffix) + 1 + 3;
+  char *bin_file_name = malloc(len);
+  FILE *bin;
+  
+  if (binary_number++ > 999)
+    goto out;
+
+  snprintf(bin_file_name, len, "%s-%03d.bin", 
+	   output_file_name, binary_number);
+  
+  if ((bin = fopen(bin_file_name, "w")) == NULL)
+    goto out;
+
+  fwrite(content, content_length, 1, bin);
+  fclose(bin);
+
+  if (strstr(content_type, "image/")) {
+    ostring(output, "<br><img src=\"http://cache.gmane.org/");
+    uncached_name(output, bin_file_name);
+    ostring(output, "\">");
+  } else {
+    ostring(output, "<br><a href=\"http://cache.gmane.org/");
+    uncached_name(output, bin_file_name);
+    ostring(output, "\">Attachment");
+    if (attachment_name != NULL) 
+      fprintf(output, " (%s)", attachment_name);
+    fprintf(output, "</a>: %s\n", content_type);
+  }
+
+ out:
+  free(bin_file_name);
+  
 }
 
 typedef struct {
@@ -85,7 +145,7 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   int i = 0;
   char content_type[128];
   const char *part_type;
-  char *mcontent;
+  char *mcontent, *p;
 
   ct = g_mime_part_get_content_type(part);
 
@@ -97,6 +157,9 @@ void transform_simple_part(FILE *output, const char *output_file_name,
     snprintf(content_type, sizeof(content_type), "%s/%s", 
 	     ct->type, ct->subtype);
 
+  for (p = content_type; *p; p++) 
+    *p = tolower(*p);
+
   content = g_mime_part_get_content(part, &contentLen);
   /* We copy over the content and zero-terminate it. */
   mcontent = malloc(contentLen + 1);
@@ -105,7 +168,9 @@ void transform_simple_part(FILE *output, const char *output_file_name,
 
   for (i = 0; ; i++) {
     if ((part_type = part_transforms[i].content_type) == NULL) {
-      transform_binary(output, mcontent, output_file_name);
+      transform_binary(output, mcontent, contentLen,
+		       g_mime_part_get_filename(part),
+		       content_type, output_file_name);
       break;
     } else if (! strcmp(part_type, content_type)) {
       (part_transforms[i].function)(output, mcontent, output_file_name);
@@ -207,13 +272,18 @@ void transform_message (FILE *output, const char *output_file_name,
 			GMimeMessage *msg) {
   int i;
   const char *header;
+  const char *value;
   
   format_file(output, "start_head", "");
 
   for (i = 0; (header = wanted_headers[i].header) != NULL; i++) {
+    if (! strcmp(header, "From"))
+      value = g_mime_message_get_sender(msg);
+    else
+      value = g_mime_message_get_header(msg, header);
     /* Call the formatter function. */
     (wanted_headers[i].function)(output, 
-				 g_mime_message_get_header(msg, header),
+				 value,
 				 output_file_name);
   }
   
