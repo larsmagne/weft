@@ -14,6 +14,7 @@
 #include <compface.h>
 #include <magick/api.h>
 #include <sys/stat.h>
+#include <regex.h>
 
 #include "config.h"
 #include "weft.h"
@@ -23,13 +24,14 @@ int start_filter = 0;
 typedef struct {
   char *from;
   char *to;
-} filter_spec;
+} string_filter_spec;
 
-filter_spec filters[] = {
-  {"<", "&lt;"},
-  {">", "&gt;"},
-  {"&", "&amp;"},
-  {"@", " &lt;at&gt; "},
+typedef struct {
+  char from;
+  char *to;
+} char_filter_spec;
+
+string_filter_spec string_filters[] = {
   {":-)", "<img alt=\":-)\" src=\"/img/smilies/smile.png\">"},
   {";-)", "<img alt=\";-)\" src=\"/img/smilies/blink.png\">"},
   {":-]", "<img alt=\":-]\" src=\"/img/smilies/forced.png\">"},
@@ -38,14 +40,69 @@ filter_spec filters[] = {
   {":-(", "<img alt=\":-(\" src=\"/img/smilies/sad.png\">"},
   {":-{", "<img alt=\":-{\" src=\"/img/smilies/frown.png\">"},
   {"(-:", "<img alt=\"(-:\" src=\"/img/smilies/reverse-smile.png\">"},
+  {NULL, NULL}
+};
+
+char_filter_spec char_filters[] = {
+  {'<', "&lt;"},
+  {'>', "&gt;"},
+  {'&', "&amp;"},
+  {'@', " &lt;at&gt; "},
   {0, NULL}
 };
+
+string_filter_spec regex_filters[] = {
+  {"\\*[a-zA-Z0-9.]*\\*", "<b>\\0</b>"},
+  {"/[a-zA-Z0-9.][a-zA-Z0-9.]*/", "<i>\\0</i>"},
+  {"_[a-zA-Z0-9.][a-zA-Z0-9.]*_", "<u>\\0</u>"},
+  {"-[a-zA-Z0-9.][a-zA-Z0-9.]*-", "<strike>\\0</strike>"},
+  {"http://[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
+  {"www\\.[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
+  {NULL, NULL}
+};
+
+typedef struct {
+  regex_t from;
+  char *to;
+} compiled_filter_spec;
+
+static compiled_filter_spec *compiled_filters;
+
+void compile_filters(void) {
+  int nfilters = 0, size, i;
+  string_filter_spec *filter;
+  compiled_filter_spec *cfilter;
+  char from[1024], errbuf[1024];
+  int errcode;
+
+  for (i = 0; regex_filters[i].from != NULL; i++) 
+    nfilters++;
+
+  size = (nfilters + 1) * sizeof(compiled_filter_spec);
+  compiled_filters = (compiled_filter_spec*) malloc(size);
+
+  bzero(compiled_filters, size);
+
+  for (i = 0; i < nfilters; i++) {
+    filter = &regex_filters[i];
+    *from = '^';
+    strncpy(from + 1, filter->from, 1023);
+    cfilter = &compiled_filters[i];
+    if ((errcode = regcomp(&cfilter->from, from, REG_ICASE))
+	== 0) 
+      cfilter->to = filter->to;
+    else {
+      regerror(errcode, &cfilter->from, errbuf, sizeof(errbuf));
+      printf("%s\n", errbuf);
+    }
+  }
+}
 
 void ostring(FILE *output, const char *string) {
   fwrite(string, strlen(string), 1, output);
 }
 
-int string_begins (const char *string, char *match) {
+int string_begins(const char *string, char *match) {
   int skip = 0;
   while (*match != 0 && *string != 0 && *string == *match) {
     string++;
@@ -61,18 +118,58 @@ int string_begins (const char *string, char *match) {
 void filter(FILE *output, const char *string) {
   char c;
   int i;
-  filter_spec *fs;
+  compiled_filter_spec *cmfs;
+  string_filter_spec *sfs;
+  char_filter_spec *cfs;
   int skip = 0;
+  regmatch_t pmatch[10];
+  char *replace;
+  int index;
 
   while ((c = *string) != 0) {
-    for (i = start_filter; filters[i].from != 0; i++) {
-      fs = &filters[i];
-      if ((skip = string_begins(string, fs->from)) != 0) {
-	ostring(output, fs->to);
-	break;
+    skip = 0;
+
+    for (i = start_filter; char_filters[i].from != 0; i++) {
+      cfs = &char_filters[i];
+      if (c == cfs->from) {
+	ostring(output, cfs->to);
+	skip = 1;
+	goto next;
       } 
     }
-    if (! skip) {
+
+    for (i = 0; string_filters[i].from != NULL; i++) {
+      sfs = &string_filters[i];
+      if (string_begins(string, sfs->from)) {
+	ostring(output, sfs->to);
+	skip = strlen(sfs->from);
+	goto next;
+      } 
+    }
+
+    if (start_filter == 0) {
+      for (i = 0; regex_filters[i].from != NULL; i++) {
+	cmfs = &compiled_filters[i];
+	if (regexec(&cmfs->from, string, 10, pmatch, 0) == 0) {
+
+	  for (replace = cmfs->to; (c = *replace) != 0; replace++) {
+	    if (c == '\\' && (index = *(replace + 1)) != 0) {
+	      replace++;
+	      index -= '0';
+	      for (i = pmatch[index].rm_so; i < pmatch[index].rm_eo; i++)
+		fputc(*(string + i), output);
+	    } else 
+	      fputc(*replace, output);
+	  }
+
+	  skip = pmatch[0].rm_eo - pmatch[0].rm_so;
+	  goto next;
+	} 
+      }
+    }
+    
+  next:
+    if (skip == 0) {
       string++;
       fputc(c, output);
     } else {
@@ -362,8 +459,8 @@ void from_picon_displayer(FILE *output, const char *from,
 
     raddress = reverse_address(address);
 
-    strncat(domains, raddress, sizeof(domains));
-    strncat(users, raddress, sizeof(users));
+    strncat(domains, raddress, sizeof(domains) - strlen(raddress));
+    strncat(users, raddress, sizeof(users) - strlen(raddress));
 
     if (strstr(domains, "//") ||
 	strstr(domains, ".") ||
