@@ -61,7 +61,7 @@ stripHtml(const char* htmlBuf, int htmlBufLen, int *length)
   xmlDocPtr htmlDoc = 0;
   xmlChar* result;
   int len;
-  htmlDoc = htmlParseDoc((xmlChar*)htmlBuf, "iso-8859-9");
+  htmlDoc = htmlParseDoc((xmlChar*)htmlBuf, "utf-8");
 
   if (htmlDoc != 0) {
     strippedDoc = stripHtmlDoc(htmlDoc);
