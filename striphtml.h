@@ -3,7 +3,9 @@
 
 #include <libxml/tree.h>
 
-xmlDocPtr stripHtml(xmlDocPtr htmlDoc);
+xmlDocPtr stripHtmlDoc(xmlDocPtr htmlDoc);
+void stripHtml(const char* htmlBuf, int htmlBufLen, const char* filename);
+
 
 #endif /* STRIPHTML_H */
 

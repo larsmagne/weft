@@ -1,4 +1,5 @@
 #include "striphtml.h"
+#include <libxml/HTMLparser.h>
 #include <libxslt/xsltInternals.h>
 #include <libxslt/transform.h>
 
@@ -29,11 +30,33 @@ initStripHtml()
   HTML tags to \a htmlDoc, and return the result as a DOM tree.
  */
 xmlDocPtr
-stripHtml(xmlDocPtr htmlDoc)
+stripHtmlDoc(xmlDocPtr htmlDoc)
 {
   xmlDocPtr retval = 0;
   initStripHtml();
   retval = xsltApplyStylesheet(stripHtmlXslt, htmlDoc, 0);
   return retval;
+}
+
+/*!
+  The \a htmlBuf argument points to a character buffer, with length
+  \a htmlBufLen, holding an HTML document to be stripped for unwanted
+  tags.  The resulting stripped file, is written to \a filename.
+*/
+void
+stripHtml(const char* htmlBuf, int htmlBufLen, const char* filename)
+{
+  xmlDocPtr strippedDoc = 0;
+  xmlDocPtr htmlDoc = 0;
+  htmlParserCtxtPtr ctxt = htmlCreateMemoryParserCtxt(htmlBuf, htmlBufLen);
+  int retcode = htmlParseDocument(ctxt);
+  htmlDoc = ctxt->myDoc;
+  fprintf(stderr, "retcode: %d  htmlDoc: %p\n", retcode, htmlDoc);
+  if (retcode >= 0 && htmlDoc != 0) {
+    strippedDoc = stripHtmlDoc(htmlDoc);
+    htmlSaveFile(filename, strippedDoc);
+    xmlFreeDoc(strippedDoc);
+  }
+  htmlFreeParserCtxt(ctxt);
 }
 
