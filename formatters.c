@@ -127,3 +127,38 @@ void date_formatter (FILE *output, const char *date_string,
   filter(output, date_string);
   ostring(output, "<br>\n");
 }
+
+void face_displayer (FILE *output, const char *face, 
+		     const char *output_file_name) {
+  char *decoded;
+  int state = 0, save = 0, ndecoded;
+  char *suffix = "-face.png";
+  char *png_file_name = malloc(strlen(output_file_name) +
+			       strlen(suffix) + 1);
+  FILE *png;
+
+  if (face == NULL)
+    return;
+
+  decoded = malloc(strlen(face));
+  
+  sprintf(png_file_name, "%s%s", output_file_name, suffix);
+  ndecoded = g_mime_utils_base64_decode_step(face, strlen(face), decoded,
+					     &state, &save);
+
+  if ((png = fopen(png_file_name, "w")) == NULL) {
+    perror("weft face");
+    goto out;
+  }
+
+  fwrite(decoded, ndecoded, 1, png);
+  fclose(png);
+
+  ostring(output, "<div class=\"face\">\n<img src=\"http://cache.gmane.org/");
+  uncached_name(output, png_file_name);
+  ostring(output, "\">\n</div>\n");
+
+ out:
+  free(decoded);
+  free(png_file_name);
+}

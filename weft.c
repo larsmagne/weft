@@ -78,6 +78,17 @@ char *get_cache_file_name(const char *file_name) {
   return of;
 }
 
+void uncached_name(FILE *output, const char *file_name) {
+  char *s = cache_directory;
+
+  while (*s && *file_name && *s == *file_name) {
+    s++;
+    file_name++;
+  }
+
+  ostring(output, file_name);
+}
+
 int make_directory (const char *dir) {
   struct stat stat_buf;
 
@@ -123,10 +134,10 @@ int main(int argc, char **argv)
   dirn = parse_args(argc, argv);
 
   if (1) {
-    file = "/mirror/var/spool/news/articles/gmane/discuss/4401";
+    file = "/mirror/var/spool/news/articles/gmane/discuss/4482";
     output_file_name = get_cache_file_name(file);
     ensure_directory(output_file_name);
-    transform_file(file, "-");
+    transform_file(file, output_file_name);
     free(output_file_name);
   } else {
   
