@@ -60,8 +60,8 @@ string_filter_spec regex_filters[] = {
   {"\\(/[a-zA-Z0-9.][a-zA-Z0-9.]*/\\)\\([^a-zA-Z0-9]\\)", "<i>\\1</i>\\2"},
   {"_\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(_[^a-zA-Z0-9]\\)", "_<u>\\1</u>\\2"},
   {"-\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(-[^a-zA-Z0-9]\\)", "-<strike>\\1</strike>\\2"},
-  {"https*://[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
-  {"www\\.[^ \n\t\"<>()]*", "<a href=\"http://\\0\" target=\"_top\">\\0</a>"},
+  {"https*://[^ \n\t\"<>()]*", "<a rel=\"nofollow\" href=\"\\0\" target=\"_top\">\\0</a>"},
+  {"www\\.[^ \n\t\"<>()]*", "<a rel=\"nofollow\" href=\"http://\\0\" target=\"_top\">\\0</a>"},
   {"\n *\n\\( *\n\\)*", "\n\n"},
   {NULL, NULL}
 };
@@ -114,40 +114,40 @@ char *get_key(void) {
 }
 
 char *decrypt(const char *encrypted, int length) {
-  GCRY_CIPHER_HD context;
+  gcry_cipher_hd_t context;
+  gcry_error_t err;
   char *decrypted = NULL;
   char *key = get_key();
-  int res;
 
   if (key == NULL)
     return NULL;
 
   decrypted = cmalloc(length + 1);
 
-  context = gcry_cipher_open(GCRY_CIPHER_BLOWFISH, GCRY_CIPHER_MODE_CBC, 0);
-  if (context == NULL)
+  err = gcry_cipher_open(&context, GCRY_CIPHER_BLOWFISH,
+			     GCRY_CIPHER_MODE_CBC, 0);
+  if (err)
     return NULL;
 
-  res = gcry_cipher_setkey(context, key, strlen(key));
-  if (res == GCRYERR_SUCCESS)
-    res = gcry_cipher_setiv (context, NULL, 0);
-  
-  if (res != GCRYERR_SUCCESS) {
-    printf("Error %d\n", res);
+  err = gcry_cipher_setkey(context, key, strlen(key));
+  if (err)
     return NULL;
-  }
 
-  gcry_cipher_decrypt(context, decrypted, length, encrypted, length);
-  if (res != GCRYERR_SUCCESS) {
-    printf("Error %d\n", res);
+  err = gcry_cipher_setiv (context, NULL, 0);
+
+  if (err) 
     return NULL;
-  }
+
+  err = gcry_cipher_decrypt(context, decrypted, length, encrypted, length);
+  if (err) 
+    return NULL;
 
   gcry_cipher_close(context);
   free(key);
   return decrypted; 
 }
 
+#if 0
 char *encrypt(const char *decrypted) {
   GCRY_CIPHER_HD context;
   char *encrypted = cmalloc(strlen(decrypted) + 1);
@@ -183,6 +183,7 @@ char *encrypt(const char *decrypted) {
   free(key);
   return encrypted; 
 }
+#endif
 
 char *public_to_address(const char *in_public) {
   char *local = NULL;
@@ -629,10 +630,13 @@ void newsgroups_formatter (FILE *output, const char *newsgroups,
   free(groups);
 }
 
-void date_formatter (FILE *output, const char *date_string, 
-		     const char *output_file_name) {
+void date_formatter (FILE *output, time_t time, int tz) {
+  char date[256];
+  struct tm *tmm = gmtime(&time);
+
+  strftime(date, 255, "%Y-%m-%d %H:%M:%S GMT", tmm);
   ostring(output, "Date: ");
-  filter(output, date_string);
+  ostring(output, date);
   ostring(output, "<br>\n");
 }
 
