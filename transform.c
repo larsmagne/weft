@@ -100,11 +100,11 @@ void transform_text_plain(FILE *output, char *content,
     ostring(output, "<pre>\n");
     remove_pgp_signed(content);
     remove_leading_blank_lines(content);
-    if (strlen(content) < 1024*32) {
+    if (strlen(content) < MAX_TEXT_PLAIN_LENGTH) {
       limit_line_lengths(content);
       filter(output, content);
     } else {
-      ostring(output, content);
+      simple_filter(output, content);
     }
     ostring(output, "</pre>\n");
   }
@@ -180,7 +180,7 @@ transform part_transforms[] = {
   {"message/rfc822", transform_message_rfc822},
   {NULL, NULL}};
 
-char *convert_to_utf8(char *string, const char *charset) {
+char *convert_to_utf8(const char *string, const char *charset) {
   const char *utf8, *local;
   iconv_t local_to_utf8;
   char *result;
@@ -219,8 +219,12 @@ void transform_simple_part(FILE *output, const char *output_file_name,
 	     ct->type, ct->subtype);
   }
 
-  if (charset == NULL)
-    charset = "iso-8859-1";
+  if (charset == NULL) {
+    if (default_charset != NULL)
+      charset = default_charset;
+    else
+      charset = "iso-8859-1";
+  }
 
   for (p = content_type; *p; p++) 
     *p = tolower(*p);
@@ -231,6 +235,8 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   memcpy(mcontent, content, contentLen);
   *(mcontent + contentLen) = 0;
 
+  /* Convert contents to utf-8.  If the conversion wasn't successful,
+     we use the original contents. */
   if (strcmp(charset, "utf-8")) 
     ccontent = convert_to_utf8(mcontent, charset);
 
@@ -241,9 +247,13 @@ void transform_simple_part(FILE *output, const char *output_file_name,
 
   for (i = 0; ; i++) {
     if ((part_type = part_transforms[i].content_type) == NULL) {
-      transform_binary(output, mcontent, contentLen,
-		       g_mime_part_get_filename(part),
-		       content_type, output_file_name);
+      if (0 && strstr(content_type, "text/")) {
+	transform_text_plain(output, use_content, output_file_name);
+      } else {
+	transform_binary(output, mcontent, contentLen,
+			 g_mime_part_get_filename(part),
+			 content_type, output_file_name);
+      }
       break;
     } else if (! strcmp(part_type, content_type)) {
       (part_transforms[i].function)(output,  use_content, output_file_name);
@@ -370,9 +380,13 @@ void transform_message(FILE *output, const char *output_file_name,
       value = g_mime_message_get_sender(msg);
     else if (! strcmp(header, "Subject"))
       value = g_mime_message_get_subject(msg);
+    else if (! strcmp(header, "Date")) {
+      value = g_mime_message_get_date_string(msg);
+    }
     else
       value = g_mime_message_get_header(msg, header);
     if (value != NULL) {
+      //printf("%s: %s\n", header, value);
       /* Call the formatter function. */
       (wanted_headers[i].function)(output, 
 				   value,
