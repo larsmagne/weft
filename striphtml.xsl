@@ -12,9 +12,9 @@
 
 <!-- This template lets safe elements through -->
 <!-- The list of elements in the match attribute isn't complete -->
-<xsl:template match="h1|h2|h3|h4|h5|h6|p|a|div|ul|li|ol|table|tr|td|br">
+<xsl:template match="h1|h2|h3|h4|h5|h6|p|a|div|ul|li|ol|table|tr|td|br|blockquote|span">
   <xsl:element name="{name(.)}">
-    <xsl:copy-of select="@*[name() != 'background' and name() != 'src']"/>
+    <xsl:copy-of select="@*[name() != 'background' and name() != 'src' and name() != 'style' and name() != 'id']"/>
     <xsl:apply-templates/>
   </xsl:element>
 </xsl:template>
