@@ -199,7 +199,7 @@ void from_formatter (FILE *output, const char *from,
 		     const char *output_file_name) {
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
-  char *address, *name;
+  char *address, *name, *kname = NULL;
 
   if (from == "")
     from = "Unknown <nobody@nowhere.invalid>";
@@ -212,6 +212,14 @@ void from_formatter (FILE *output, const char *from,
     name = iaddr->name;
     if (name == NULL)
       name = "";
+
+    if (strrchr(name, ')') == name + strlen(name) - 1) {
+      kname = malloc(strlen(name));
+      strcpy(kname, name);
+      *strrchr(kname, ')') = 0;
+      name = kname;
+    }
+
     filter(output, name);
     fprintf(output, " ");
     
@@ -221,6 +229,8 @@ void from_formatter (FILE *output, const char *from,
     filter(output, address);
     fprintf(output, "&gt;");
     free(address);
+    if (kname)
+      free(kname);
     internet_address_list_destroy(iaddr_list);
   } else {
     fprintf(output, "nobody");
