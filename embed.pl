@@ -13,7 +13,7 @@ $arrayName =~ s/\./_/g;
 $outputFileName = $arrayName.".h";
 open(OUT,">$outputFileName");
 
-print OUT "$arrayName=\n";
+print OUT "const char* $arrayName =\n";
 while(<EMBED>) {
     tr/\n//d;
     s/"/\\"/g;
