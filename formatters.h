@@ -21,6 +21,7 @@ void from_picon_displayer (FILE *output, const char *from,
 			   const char *output_file_name);
 void ostring(FILE *output, const char *string);
 void filter(FILE *output, const char *string);
+void compile_filters(void);
 
 extern int start_filter;
 
