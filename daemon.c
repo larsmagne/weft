@@ -50,6 +50,9 @@ int main(int argc, char **argv) {
 
   dirn = parse_args(argc, argv);
 
+  compile_filters();
+  compile_words();
+
   if (signal(SIGHUP, closedown) == SIG_ERR) {
     perror("Signal");
     exit(1);
@@ -131,7 +134,9 @@ int main(int argc, char **argv) {
 	  ensure_directory(output_file_name);
 	  transform_file(file_name, output_file_name);
 	  free(output_file_name);
+	  fprintf(client, "ok\n"); 
 	} else if (!strcmp(command, "quit")) {
+	  fprintf(client, "ok\n"); 
 	  closedown(0);
 	} 
 
