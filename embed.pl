@@ -17,9 +17,7 @@ print OUT "const char $arrayName\[\] =\n";
 while(<EMBED>) {
     tr/\n//d;
     s/"/\\"/g;
-    if ($_) {
-	print OUT "  \"$_\\n\"\n";
-    }
+    print OUT "  \"$_\\n\"\n";
 }
 print OUT ";\n";
 
