@@ -20,6 +20,7 @@
 #include "weft.h"
 
 int start_filter = 0;
+static char word_chars[256];
 
 typedef struct {
   char *from;
@@ -52,10 +53,11 @@ char_filter_spec char_filters[] = {
 };
 
 string_filter_spec regex_filters[] = {
-  {"\\*[a-zA-Z0-9.]*\\*", "<b>\\0</b>"},
-  {"/[a-zA-Z0-9.][a-zA-Z0-9.]*/", "<i>\\0</i>"},
-  {"_[a-zA-Z0-9.][a-zA-Z0-9.]*_", "<u>\\0</u>"},
-  {"-[a-zA-Z0-9.][a-zA-Z0-9.]*-", "<strike>\\0</strike>"},
+  {"-[a-zA-Z0-9/+]*@public\\.gmane\\.org", "@..."},
+  {"\\*[a-zA-Z0-9.]*\\*[^a-zA-Z0-9]", "<b>\\0</b>"},
+  {"/[a-zA-Z0-9.][a-zA-Z0-9.]*/[^a-zA-Z0-9]", "<i>\\0</i>"},
+  {"_[a-zA-Z0-9.][a-zA-Z0-9.]*_[^a-zA-Z0-9]", "<u>\\0</u>"},
+  {"-[a-zA-Z0-9.][a-zA-Z0-9.]*-[^a-zA-Z0-9]", "<strike>\\0</strike>"},
   {"http://[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
   {"www\\.[^ \n\t\"<>()]*", "<a href=\"\\0\" target=\"_top\">\\0</a>"},
   {NULL, NULL}
@@ -98,6 +100,16 @@ void compile_filters(void) {
   }
 }
 
+void compile_words(void) {
+  int i;
+  for (i = 'a'; i <= 'z'; i++) 
+    word_chars[i] = 1;
+  for (i = 'A'; i <= 'Z'; i++) 
+    word_chars[i] = 1;
+  for (i = '0'; i <= '9'; i++) 
+    word_chars[i] = 1;
+}
+
 void ostring(FILE *output, const char *string) {
   fwrite(string, strlen(string), 1, output);
 }
@@ -116,7 +128,7 @@ int string_begins(const char *string, char *match) {
 }
 
 void filter(FILE *output, const char *string) {
-  char c;
+  char c, prev = 0;
   int i;
   compiled_filter_spec *cmfs;
   string_filter_spec *sfs;
@@ -149,6 +161,10 @@ void filter(FILE *output, const char *string) {
 
     if (start_filter == 0) {
       for (i = 0; regex_filters[i].from != NULL; i++) {
+	/* Dirty hack to allow the first regexp to follow
+	   a word character. */
+	if (i > 0 && word_chars[(unsigned int)prev])
+	  break;
 	cmfs = &compiled_filters[i];
 	if (regexec(&cmfs->from, string, 10, pmatch, 0) == 0) {
 
@@ -171,6 +187,7 @@ void filter(FILE *output, const char *string) {
   next:
     if (skip == 0) {
       string++;
+      prev = c;
       fputc(c, output);
     } else {
       string += skip;
@@ -385,8 +402,6 @@ char *reverse_address(char *address) {
 
   return raddress;
 }
-
-static int picon_number = 0;
 
 void output_copy_file(FILE *output, const char *output_file_name,
 		      const char *file_name) {

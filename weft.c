@@ -18,10 +18,13 @@ static char *spool_directory = SPOOL_DIRECTORY;
 static char *texts_directory = TEXTS_DIRECTORY;
 char *picon_directory = PICON_DIRECTORY;
 int max_plain_line_length = MAX_PLAIN_LINE_LENGTH;
+int picon_number = 0;
+int binary_number = 0;
 
 struct option long_options[] = {
   {"cache", 1, 0, 'c'},
   {"help", 1, 0, 'h'},
+  {"port", 1, 0, 'p'},
   {0, 0, 0, 0}
 };
 
@@ -127,43 +130,4 @@ void ensure_directory(const char *file_name) {
 
   free(dir);
 }
-
-int main(int argc, char **argv)
-{
-  int dirn;
-  struct stat stat_buf;
-  char *file, *output_file_name;
-
-  dirn = parse_args(argc, argv);
-
-  compile_filters();
-
-  if (0) {
-    file = "/mnt/var/spool/news/articles/gmane/discuss/4482";
-    output_file_name = get_cache_file_name(file);
-    ensure_directory(output_file_name);
-    transform_file(file, output_file_name);
-    free(output_file_name);
-  } else {
-  
-    for ( ; dirn < argc; dirn++) {
-      file = argv[dirn];
-      if (stat(file, &stat_buf) == -1) {
-	perror("weft loop");
-	break;
-      }
-
-      if (S_ISREG(stat_buf.st_mode)) {
-	output_file_name = get_cache_file_name(file);
-	ensure_directory(output_file_name);
-	transform_file(file, output_file_name);
-	free(output_file_name);
-      } else {
-	fprintf(stderr, "%s is not a regular file; skipping.\n", file);
-	break;
-      }
-    }
-  }
-  exit(0);
-}   
 

@@ -22,6 +22,7 @@ void from_picon_displayer (FILE *output, const char *from,
 void ostring(FILE *output, const char *string);
 void filter(FILE *output, const char *string);
 void compile_filters(void);
+void compile_words(void);
 
 extern int start_filter;
 

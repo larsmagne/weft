@@ -86,8 +86,6 @@ void transform_text_html(FILE *output, const char *content,
   free(clean);
 }
 
-static int binary_number = 0;
-
 void transform_binary(FILE *output, const char *content, 
 		      int content_length, const char *attachment_name,
 		      const char *content_type,

@@ -11,13 +11,17 @@ CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) $(shell xml2-config --cflags) $(shell xslt-c
 LDFLAGS=@LDFLAGS@ $(GMIME_LIBS) $(shell xml2-config --libs) $(shell xslt-config --libs) -lcompface -lMagick -lxml
 CC = @CC@ $(CPPFLAGS)
 
-all: weft
+all: weft weftd
 
 weft.o: weft.c config.h
 
 formatters.o: formatters.c config.h
 
 transform.o: transform.c config.h
+
+daemon.o: daemon.c config.h
+
+int.o: int.c config.h
 
 stripHtml.o: stripHtml.c
 
@@ -28,12 +32,16 @@ stripHtml.o: stripHtml.c
 striphtml_xsl.h: embed.pl
 striphtml_xsl.h: striphtml.xsl
 
-weft: weft.o formatters.o transform.o striphtml.o striphtml_xsl.h
+weft: weft.o formatters.o transform.o striphtml.o striphtml_xsl.h int.o
 	$(CC) $(CPPFLAGS) -o weft $(LDFLAGS) weft.o formatters.o\
-	 transform.o striphtml.o
+	 transform.o striphtml.o int.o
+
+weftd: weft.o formatters.o transform.o striphtml.o striphtml_xsl.h daemon.o
+	$(CC) $(CPPFLAGS) -o weftd $(LDFLAGS) weft.o formatters.o\
+	 transform.o striphtml.o daemon.o
 
 clean:
-	$(RM) indexer *.o
+	$(RM) indexer *.o weft weftd
 
 TAGS: *.h *.c
 	etags *.[ch]

@@ -57,28 +57,18 @@ stripHtmlDoc(xmlDocPtr htmlDoc)
 char *
 stripHtml(const char* htmlBuf, int htmlBufLen, int *length)
 {
-  int bufSize = 4;
-  char buf[bufSize];
   xmlDocPtr strippedDoc = 0;
   xmlDocPtr htmlDoc = 0;
   xmlChar* result;
   int len;
-  htmlParserCtxtPtr ctxt = htmlCreatePushParserCtxt(0,
-						    0,
-						    buf,
-						    bufSize,
-						    0,
-						    (xmlCharEncoding)0);
-  htmlParseChunk(ctxt, htmlBuf, htmlBufLen, 1);
+  htmlDoc = htmlParseDoc((xmlChar*)htmlBuf, "iso-8859-9");
 
-  htmlDoc = ctxt->myDoc;
   if (htmlDoc != 0) {
     strippedDoc = stripHtmlDoc(htmlDoc);
     htmlDocDumpMemory(strippedDoc, &result, &len);
     xmlFreeDoc(strippedDoc);
+    xmlFreeDoc(htmlDoc);
   }
-  htmlFreeParserCtxt(ctxt);
-  printf("%s", result);
   *length = len;
   return result;
 }
