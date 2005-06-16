@@ -67,21 +67,25 @@ void limit_line_lengths(char *content) {
   }
 }
 
-void transform_message_rfc822(FILE *output, char *content, 
-			      const char *output_file_name);
+void transform_message_rfc822(FILE *output, const char *output_file_name,
+			      GMimePart* part);
 
 void remove_leading_blank_lines(char *content) {
   char *s = content;
-  while (*s == '\n' || *s == ' ')
+  char *last_newline = NULL;
+  while (*s == '\n' || *s == ' ') {
+    if (*s == '\n')
+      last_newline = s;
     s++;
-  if (s != content)
-    memmove(content, s, strlen(s) + 1);
+  }
+  if (last_newline != NULL)
+    memmove(content, last_newline, strlen(last_newline) + 1);
 }
 
 void remove_pgp_signed(char *content) {
   char *s;
-  if (strstr(content, "-----BEGIN PGP SIGNED MESSAGE-----") == content &&
-      (s = strstr(content, "\n\n")) != NULL) {
+  if (strncmp(content, "-----BEGIN PGP SIGNED MESSAGE-----", 34) == 0 &&
+      (s = strstr(content + 34, "\n\n")) != NULL) {
     /* First remove the PGP header. */
     memmove(content, s, strlen(s) + 1);
     /* Then remove the trailer. */
@@ -178,7 +182,6 @@ typedef struct {
 transform part_transforms[] = {
   {"text/plain", transform_text_plain},
   {"text/html", transform_text_html},
-  {"message/rfc822", transform_message_rfc822},
   {NULL, NULL}};
 
 char *convert_to_utf8(const char *string, const char *charset) {
@@ -287,12 +290,12 @@ void format_file(FILE *output, char *type, const char *value) {
 
 void transform_multipart(FILE *output, const char *output_file_name,
 			 GMimeMultipart *mime_part) {
-  const GMimeContentType* ct = 0;
+  const GMimeContentType* ct = NULL;
   GList *child;
   GMimePart *preferred = NULL;
   char *type, *subtype = NULL;
 
-  //ct = g_mime_part_get_content_type(mime_part);
+  ct = g_mime_object_get_content_type(GMIME_OBJECT(mime_part));
 
   if (ct != NULL) 
     subtype = ct->subtype;
@@ -361,9 +364,15 @@ void transform_multipart(FILE *output, const char *output_file_name,
   }
 }
 
+#define GMIME_TYPE_822            (g_mime_message_part_get_type ())
+#define GMIME_IS_822(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GMIME_TYPE_822))
+
+
 void transform_part(FILE *output, const char *output_file_name,
 			 GMimeObject *mime_part) {
-  if (GMIME_IS_MULTIPART(mime_part)) {
+  if (GMIME_IS_822(mime_part)) {
+    transform_message_rfc822(output, output_file_name, mime_part);
+  } else if (GMIME_IS_MULTIPART(mime_part)) {
     transform_multipart(output, output_file_name, 
 			GMIME_MULTIPART(mime_part)); 
   } else {
@@ -371,6 +380,7 @@ void transform_part(FILE *output, const char *output_file_name,
   }
 
 }
+
 
 void transform_message(FILE *output, const char *output_file_name,
 		       GMimeMessage *msg) {
@@ -469,8 +479,8 @@ void transform_file(const char *input_file_name,
   close(file);
 }
 
-void transform_message_rfc822(FILE *output, char *content, 
-			      const char *output_file_name) {
+void transform_message_rfc822_1(FILE *output, char *content, 
+				const char *output_file_name) {
   GMimeStream *stream;
   GMimeMessage *msg = 0;
   const char *subject;
@@ -494,3 +504,18 @@ void transform_message_rfc822(FILE *output, char *content,
   }
 }
 
+void transform_message_rfc822(FILE *output, const char *output_file_name,
+			      GMimePart* part) {
+  const gchar* content = 0;
+  char *mcontent;
+  long contentLen = 0;
+
+  content = g_mime_part_get_content(part, &contentLen);
+  /* We copy over the content and zero-terminate it. */
+  mcontent = malloc(contentLen + 1);
+  memcpy(mcontent, content, contentLen);
+  *(mcontent + contentLen) = 0;
+
+  transform_message_rfc822_1(output, mcontent, output_file_name);
+  free(mcontent);
+}
