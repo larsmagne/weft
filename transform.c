@@ -67,9 +67,6 @@ void limit_line_lengths(char *content) {
   }
 }
 
-void transform_message_rfc822(FILE *output, const char *output_file_name,
-			      GMimePart* part);
-
 void remove_leading_blank_lines(char *content) {
   char *s = content;
   char *last_newline = NULL;
@@ -346,10 +343,12 @@ void transform_multipart(FILE *output, const char *output_file_name,
     GMimeContentType* ct;
     child = mime_part->subparts;
     while (child) {
-      ct = g_mime_content_type_new_from_string("message/rfc822");
-      g_mime_part_set_content_type(child->data, ct);
-      transform_part(output, output_file_name, 
-		     (GMimeObject *) child->data);
+      if (GMIME_IS_PART(child->data)) {
+	ct = g_mime_content_type_new_from_string("message/rfc822");
+	g_mime_part_set_content_type(GMIME_PART(child->data), ct);
+	transform_part(output, output_file_name, 
+		       (GMimeObject *) child->data);
+      }
       child = child->next;
     }
       
@@ -364,23 +363,23 @@ void transform_multipart(FILE *output, const char *output_file_name,
   }
 }
 
-#define GMIME_TYPE_822            (g_mime_message_part_get_type ())
-#define GMIME_IS_822(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GMIME_TYPE_822))
-
+void transform_message(FILE *output, const char *output_file_name,
+		       GMimeMessage *msg);
 
 void transform_part(FILE *output, const char *output_file_name,
 			 GMimeObject *mime_part) {
-  if (GMIME_IS_822(mime_part)) {
-    transform_message_rfc822(output, output_file_name, mime_part);
+  if (GMIME_IS_MESSAGE_PART(mime_part)) {
+    GMimeMessagePart *msgpart = GMIME_MESSAGE_PART(mime_part);
+    GMimeMessage *msg = g_mime_message_part_get_message(msgpart);
+    transform_message(output, output_file_name, msg);
+    g_object_unref(msg);
   } else if (GMIME_IS_MULTIPART(mime_part)) {
     transform_multipart(output, output_file_name, 
 			GMIME_MULTIPART(mime_part)); 
   } else {
     transform_simple_part(output, output_file_name, GMIME_PART(mime_part));
   }
-
 }
-
 
 void transform_message(FILE *output, const char *output_file_name,
 		       GMimeMessage *msg) {
@@ -477,45 +476,4 @@ void transform_file(const char *input_file_name,
     fclose(output);
   }
   close(file);
-}
-
-void transform_message_rfc822_1(FILE *output, char *content, 
-				const char *output_file_name) {
-  GMimeStream *stream;
-  GMimeMessage *msg = 0;
-  const char *subject;
-
-  stream = g_mime_stream_mem_new_with_buffer(content, strlen(content));
-  msg = g_mime_parser_construct_message(g_mime_parser_new_with_stream(stream));
-  g_mime_stream_unref(stream);
-
-  if (msg != 0) {
-    ostring(output, "<hr class=\"rfc\">\n");
-
-    subject = g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
-
-    format_file(output, "preamble", subject);
-
-    transform_message(output, output_file_name, msg);
-    
-    format_file(output, "postamble", subject);
-    g_mime_object_unref(GMIME_OBJECT(msg));
-    ostring(output, "<hr class=\"rfc\">\n");
-  }
-}
-
-void transform_message_rfc822(FILE *output, const char *output_file_name,
-			      GMimePart* part) {
-  const gchar* content = 0;
-  char *mcontent;
-  long contentLen = 0;
-
-  content = g_mime_part_get_content(part, &contentLen);
-  /* We copy over the content and zero-terminate it. */
-  mcontent = malloc(contentLen + 1);
-  memcpy(mcontent, content, contentLen);
-  *(mcontent + contentLen) = 0;
-
-  transform_message_rfc822_1(output, mcontent, output_file_name);
-  free(mcontent);
 }
