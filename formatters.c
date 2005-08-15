@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <regex.h>
 #include <gcrypt.h>
+#include <ctype.h>
 
 #include "config.h"
 #include "weft.h"
@@ -777,8 +778,10 @@ char *reverse_address(char *address) {
   strcat(raddress, address + i + 1);
 
   s = raddress;
-  while (*s) 
-    *s++ = tolower(*s);
+  while (*s) {
+    *s = tolower(*s);
+    s++;
+  }
 
   return raddress;
 }
@@ -922,7 +925,7 @@ void from_picon_displayer(FILE *output, const char *from,
     }
 
     raddress = reverse_address(address);
-
+    
     strncat(domains, raddress, sizeof(domains) - strlen(raddress));
     strncat(users, raddress, sizeof(users) - strlen(raddress));
 
