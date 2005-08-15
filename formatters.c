@@ -759,6 +759,7 @@ void image_box_end (FILE *output, const char *dummy,
 char *reverse_address(char *address) {
   int len = strlen(address), i;
   char *raddress = malloc(len + 1);
+  char *s;
 
   *raddress = 0;
 
@@ -774,6 +775,10 @@ char *reverse_address(char *address) {
   if (*raddress)
     strcat(raddress, "/");
   strcat(raddress, address + i + 1);
+
+  s = raddress;
+  while (*s) 
+    *s++ = tolower(*s);
 
   return raddress;
 }
@@ -823,6 +828,68 @@ loff_t file_size (char *file) {
     return 0;
   }
   return stat_buf.st_size;
+}
+
+char *hex(unsigned char *string, int length) {
+  char *result = malloc(length * 2 + 1);
+  char *s = result;
+  int i;
+
+  for (i = 0; i < length; i++) {
+    sprintf(s, "%02x", string[i]);
+    s += 2;
+  }
+  *s = 0;
+  return result;
+}
+
+void from_gravatar_displayer(FILE *output, const char *from, 
+			     const char *output_file_name) {
+  InternetAddress *iaddr;
+  InternetAddressList *iaddr_list;
+  char *address, *new_address;
+  gcry_md_hd_t md5;
+  gcry_error_t err;
+  char *hash16;
+  
+  if (from == NULL)
+    return;
+
+  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
+    iaddr = iaddr_list->address;
+
+    internet_address_set_name(iaddr, NULL);
+    address = internet_address_to_string(iaddr, FALSE);
+
+    if (strstr(address, "@public.gmane.org")) {
+      new_address = public_to_address(address);
+      if (new_address != NULL) {
+	free(address);
+	address = new_address;
+      }
+    }
+
+    err = gcry_md_open(&md5, GCRY_MD_MD5, 0);
+    if (err)
+      return;
+
+    gcry_md_write(md5, address, strlen(address));
+
+    err = gcry_md_final(md5);
+    if (err)
+      return;
+
+    hash16 = hex(gcry_md_read(md5, 0), 16);
+    gcry_md_close(md5);
+
+    fprintf(output, "<img src=\"http://www.gravatar.com/avatar.php?gravatar_id=%s\">\n",
+	    hash16);
+    
+    free(address);
+    free(hash16);
+    internet_address_list_destroy(iaddr_list);
+  }
+
 }
 
 void from_picon_displayer(FILE *output, const char *from, 
