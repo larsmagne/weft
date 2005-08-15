@@ -34,6 +34,7 @@ formatter wanted_headers[] = {
   {"X-Face", xface_displayer},
   {"Face", face_displayer},
   {"From", from_picon_displayer},
+  /* {"From", from_gravatar_displayer}, */
   {"From", image_box_end},
   {"From", from_formatter},
   {"Subject", subject_formatter},

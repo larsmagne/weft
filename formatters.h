@@ -18,6 +18,8 @@ void image_box_end (FILE *output, const char *dummy,
 		    const char *output_file_name);
 void from_picon_displayer (FILE *output, const char *from, 
 			   const char *output_file_name);
+void from_gravatar_displayer (FILE *output, const char *from, 
+			      const char *output_file_name);
 void expiry_formatter (FILE *output, const char *expiry_string, 
 		       const char *output_file_name);
 void ostring(FILE *output, const char *string);
