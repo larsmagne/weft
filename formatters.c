@@ -802,14 +802,31 @@ char *reverse_address(char *address) {
   return raddress;
 }
 
+void copy_file(const char *in_name, const char *out_name) {
+  FILE *in, *out;
+  int count;
+  char buffer[4096];
+
+  if ((in = fopen(in_name, "r")) == NULL)
+    return;
+
+  if ((out = fopen(out_name, "w")) == NULL) {
+    fclose(in);
+    return;
+  }
+
+  while ((count = fread(buffer, 1, 1, in)) != 0)
+    fwrite(buffer, count, 1, out);
+
+  fclose(in);
+  fclose(out);
+}
+
 void output_copy_file(FILE *output, const char *output_file_name,
 		      const char *file_name) {
   char *suffix = "-picon-.gif";
   char *gif_file_name;
   int len = strlen(output_file_name) + strlen(suffix) + 1 + 3;
-  FILE *in, *out;
-  char buffer[4096];
-  int count;
 
   if (picon_number++ > 999)
     return;
@@ -822,21 +839,8 @@ void output_copy_file(FILE *output, const char *output_file_name,
   uncached_name(output, gif_file_name);
   ostring(output, "\"></a>\n");
 
-  if ((in = fopen(file_name, "r")) == NULL)
-    goto out;
+  copy_file(file_name, gif_file_name);
 
-  if ((out = fopen(gif_file_name, "w")) == NULL) {
-    fclose(in);
-    goto out;
-  }
-
-  while ((count = fread(buffer, 1, 1, in)) != 0)
-    fwrite(buffer, count, 1, out);
-
-  fclose(in);
-  fclose(out);
-
- out:
   free(gif_file_name);
 }
 
@@ -986,10 +990,14 @@ void from_icon_displayer(FILE *output, const char *from,
   char *address, *raddress;
   char users[10240], file[10240];
   char *new_address, *domain, *full_domain;
+  char *suffix = "-favicon.png";
+  char *file_name = malloc(strlen(output_file_name) +
+			   strlen(suffix) + 1);
   
   if (from == NULL)
     return;
 
+  sprintf(file_name, "%s%s", output_file_name, suffix);
   snprintf(users, sizeof(users), "%s/", "/var/tmp/pictures");
 
   if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
@@ -1016,14 +1024,18 @@ void from_icon_displayer(FILE *output, const char *from,
 
     snprintf(file, sizeof(file), "%s%s", users, "/favicon.png");
     if (file_size(file) != 0) {
-      fprintf(output, "<a target=\"_top\" href=\"http://%s/\" rel=\"nofollow\"><img border=0 alt=\"Favicon\" src=\"http://images.gmane.org/%s/favicon.png\"></a>\n",
-	      full_domain, raddress);
+      copy_file(file, file_name);
+      fprintf(output, "<a target=\"_top\" href=\"http://%s/\" rel=\"nofollow\"><img border=0 alt=\"Favicon\" src=\"http://cache.gmane.org",
+	      full_domain);
+      uncached_name(output, file_name);
+      ostring(output, "\"></a>\n");
     }
 
   out:
     free(address);
     free(raddress);
     free(full_domain);
+    free(file_name);
     internet_address_list_destroy(iaddr_list);
   }
 }
@@ -1037,11 +1049,15 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
   char *new_address, *domain, *full_domain, *full_address;
   gcry_md_hd_t md5;
   gcry_error_t err;
-  char *hash16 = NULL;
-  
+  char *hash16 = NULL; 
+  char *suffix = "-gravatar";
+  char *file_name = malloc(strlen(output_file_name) +
+			   strlen(suffix) + 1);
+
   if (from == NULL)
     return;
 
+  sprintf(file_name, "%s%s", output_file_name, suffix);
   snprintf(users, sizeof(users), "%s/", "/var/tmp/pictures");
 
   if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
@@ -1081,11 +1097,12 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
     hash16 = hex(gcry_md_read(md5, 0), 16);
     gcry_md_close(md5);
 
-    snprintf(file, sizeof(file), "%s/%s.jpg", users, hash16);
-    printf("%s %s\n", file, full_address);
+    snprintf(file, sizeof(file), "%s/%s", users, hash16);
     if (file_size(file) != 0) {
-      fprintf(output, "<a target=\"_top\" href=\"http://gravatar.com/\" rel=\"nofollow\"><img border=0 alt=\"Gravatar\" src=\"http://images.gmane.org/%s/%s.jpg\"></a>\n",
-	      raddress, hash16);
+      copy_file(file, file_name);
+      ostring(output, "<a target=\"_top\" href=\"http://gravatar.com/\" rel=\"nofollow\"><img border=0 alt=\"Gravatar\" src=\"http://cache.gmane.org/");
+      uncached_name(output, file_name);
+      ostring(output, "\"></a>\n");
     }
 
   out:
@@ -1094,6 +1111,7 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
     free(full_domain);
     free(full_address);
     free(hash16);
+    free(file_name);
     internet_address_list_destroy(iaddr_list);
   }
 }
