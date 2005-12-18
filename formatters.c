@@ -64,6 +64,10 @@ string_filter_spec regex_filters[] = {
   {"https*://[^ \n\t\"<>()]*", "<a rel=\"nofollow\" href=\"\\0\" target=\"_top\">\\0</a>"},
   {"www\\.[^ \n\t\"<>()]*", "<a rel=\"nofollow\" href=\"http://\\0\" target=\"_top\">\\0</a>"},
   {"\n *\\( *\n\\)*\n", "\n\n"},
+  {"<", "&lt;"},
+  {">", "&gt;"},
+  {"&", "&amp;"},
+  {"@", " &lt;at&gt; "},
   {NULL, NULL}
 };
 
@@ -414,13 +418,15 @@ void filter(FILE *output, const char *string) {
   while ((c = *string) != 0) {
     skip = 0;
 
-    for (i = start_filter; char_filters[i].from != 0; i++) {
-      cfs = &char_filters[i];
-      if (c == cfs->from && ! string_begins(string, "@public.gmane.org")) {
-	osstring(cfs->to, 1);
-	skip = 1;
-	goto next;
-      } 
+    if (start_filter == 3) {
+      for (i = start_filter; char_filters[i].from != 0; i++) {
+	cfs = &char_filters[i];
+	if (c == cfs->from && ! string_begins(string, "@public.gmane.org")) {
+	  osstring(cfs->to, 1);
+	  skip = 1;
+	  goto next;
+	} 
+      }
     }
 
     for (i = 0; string_filters[i].from != NULL; i++) {
@@ -496,7 +502,17 @@ void regex_filter(FILE *output) {
 		quote_char(*(string + j), output);
 	      else {
 		c = *(string + j);
-		fputc(c, output);
+		/* More dirty, dirty hacking. */
+		if (c == '&')
+		  fprintf(output, "&amp;");
+		else if (c == '<')
+		  fprintf(output, "&le;");
+		else if (c == '>')
+		  fprintf(output, "&ge;");
+		else if (c == '@')
+		  fprintf(output, " &lt;at&gt; ");
+		else
+		  fputc(c, output);
 	      }
 	    }
 	  } else 
@@ -666,7 +682,7 @@ void write_xface(char *png_file_name) {
   for (i = 0; i < 48 * 48; i++)
     F[i] = (F[i]? 0: 255);
 
-  image=ConstituteImage(48, 48, "A", CharPixel, F, &exception);
+  image=ConstituteImage(48, 48, "I", CharPixel, F, &exception);
 
   strcpy(image_info.filename, png_file_name);
   strcpy(image->filename, png_file_name);
@@ -961,4 +977,132 @@ void from_picon_displayer(FILE *output, const char *from,
     free(raddress);
     internet_address_list_destroy(iaddr_list);
   }
+}
+
+void from_icon_displayer(FILE *output, const char *from, 
+			 const char *output_file_name) {
+  InternetAddress *iaddr;
+  InternetAddressList *iaddr_list;
+  char *address, *raddress;
+  char users[10240], file[10240];
+  char *new_address, *domain, *full_domain;
+  
+  if (from == NULL)
+    return;
+
+  snprintf(users, sizeof(users), "%s/", "/var/tmp/pictures");
+
+  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
+    iaddr = iaddr_list->address;
+
+    internet_address_set_name(iaddr, NULL);
+    address = internet_address_to_string(iaddr, FALSE);
+
+    if (strstr(address, "@public.gmane.org")) {
+      new_address = public_to_address(address);
+      if (new_address != NULL)
+	address = new_address;
+    }
+
+    domain = strchr(address, '@') + 1;
+    full_domain = malloc(strlen(domain) + 1);
+    strcpy(full_domain, domain);
+    raddress = reverse_address(domain);
+    strncat(users, raddress, sizeof(users) - strlen(raddress));
+
+    if (strstr(users, "//") ||
+	strstr(users, "."))
+      goto out;
+
+    snprintf(file, sizeof(file), "%s%s", users, "/favicon.png");
+    if (file_size(file) != 0) {
+      fprintf(output, "<a target=\"_top\" href=\"http://%s/\" rel=\"nofollow\"><img border=0 alt=\"Favicon\" src=\"http://images.gmane.org/%s/favicon.png\"></a>\n",
+	      full_domain, raddress);
+    }
+
+  out:
+    free(address);
+    free(raddress);
+    free(full_domain);
+    internet_address_list_destroy(iaddr_list);
+  }
+}
+
+void from_cached_gravatar_displayer(FILE *output, const char *from, 
+				    const char *output_file_name) {
+  InternetAddress *iaddr;
+  InternetAddressList *iaddr_list;
+  char *address, *raddress;
+  char users[10240], file[10240];
+  char *new_address, *domain, *full_domain, *full_address;
+  gcry_md_hd_t md5;
+  gcry_error_t err;
+  char *hash16 = NULL;
+  
+  if (from == NULL)
+    return;
+
+  snprintf(users, sizeof(users), "%s/", "/var/tmp/pictures");
+
+  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
+    iaddr = iaddr_list->address;
+
+    internet_address_set_name(iaddr, NULL);
+    address = internet_address_to_string(iaddr, FALSE);
+
+    if (strstr(address, "@public.gmane.org")) {
+      new_address = public_to_address(address);
+      if (new_address != NULL)
+	address = new_address;
+    }
+
+    domain = strchr(address, '@') + 1;
+    full_domain = malloc(strlen(domain) + 1);
+    strcpy(full_domain, domain);
+    full_address = malloc(strlen(address) + 1);
+    strcpy(full_address, address);
+    raddress = reverse_address(domain);
+    strncat(users, raddress, sizeof(users) - strlen(raddress));
+
+    if (strstr(users, "//") ||
+	strstr(users, "."))
+      goto out;
+
+    err = gcry_md_open(&md5, GCRY_MD_MD5, 0);
+    if (err)
+      return;
+
+    gcry_md_write(md5, full_address, strlen(full_address));
+
+    err = gcry_md_final(md5);
+    if (err)
+      return;
+
+    hash16 = hex(gcry_md_read(md5, 0), 16);
+    gcry_md_close(md5);
+
+    snprintf(file, sizeof(file), "%s/%s.jpg", users, hash16);
+    printf("%s %s\n", file, full_address);
+    if (file_size(file) != 0) {
+      fprintf(output, "<a target=\"_top\" href=\"http://gravatar.com/\" rel=\"nofollow\"><img border=0 alt=\"Gravatar\" src=\"http://images.gmane.org/%s/%s.jpg\"></a>\n",
+	      raddress, hash16);
+    }
+
+  out:
+    free(address);
+    free(raddress);
+    free(full_domain);
+    free(full_address);
+    free(hash16);
+    internet_address_list_destroy(iaddr_list);
+  }
+}
+
+void x_image_url_displayer (FILE *output, const char *url, 
+			    const char *output_file_name) {
+  if (url == NULL)
+    return;
+
+  fprintf(output, "<img border=0 alt=\"X-Image-URL\" src=\"%s\"></a>\n",
+	  url);
 }
