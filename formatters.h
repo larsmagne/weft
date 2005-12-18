@@ -22,6 +22,12 @@ void from_gravatar_displayer (FILE *output, const char *from,
 			      const char *output_file_name);
 void expiry_formatter (FILE *output, const char *expiry_string, 
 		       const char *output_file_name);
+void from_icon_displayer(FILE *output, const char *from, 
+			 const char *output_file_name);
+void from_cached_gravatar_displayer(FILE *output, const char *from, 
+				    const char *output_file_name);
+void x_image_url_displayer (FILE *output, const char *url, 
+			    const char *output_file_name);
 void ostring(FILE *output, const char *string);
 void simple_filter(FILE *output, const char *string);
 void filter(FILE *output, const char *string);
