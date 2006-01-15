@@ -987,9 +987,9 @@ void from_icon_displayer(FILE *output, const char *from,
 			 const char *output_file_name) {
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
-  char *address, *raddress;
+  char *address, *raddress = NULL;
   char users[10240], file[10240];
-  char *new_address, *domain, *full_domain;
+  char *new_address, *domain, *full_domain = NULL;
   char *suffix = "-favicon.png";
   char *file_name = malloc(strlen(output_file_name) +
 			   strlen(suffix) + 1);
@@ -1012,7 +1012,11 @@ void from_icon_displayer(FILE *output, const char *from,
 	address = new_address;
     }
 
-    domain = strchr(address, '@') + 1;
+    domain = strchr(address, '@');
+    if (domain == NULL) 
+      goto out;
+      
+    domain++;
     full_domain = malloc(strlen(domain) + 1);
     strcpy(full_domain, domain);
     raddress = reverse_address(domain);
@@ -1025,16 +1029,16 @@ void from_icon_displayer(FILE *output, const char *from,
     snprintf(file, sizeof(file), "%s%s", users, "/favicon.png");
     if (file_size(file) != 0) {
       copy_file(file, file_name);
-      fprintf(output, "<a target=\"_top\" href=\"http://%s/\" rel=\"nofollow\"><img border=0 alt=\"Favicon\" src=\"http://cache.gmane.org",
-	      full_domain);
+      fprintf(output, "<img border=0 alt=\"Favicon\" src=\"http://cache.gmane.org");
       uncached_name(output, file_name);
-      ostring(output, "\"></a>\n");
+      ostring(output, "\">\n");
     }
 
   out:
+    if (full_domain)
+      free(full_domain);
     free(address);
     free(raddress);
-    free(full_domain);
     free(file_name);
     internet_address_list_destroy(iaddr_list);
   }
@@ -1044,9 +1048,9 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
 				    const char *output_file_name) {
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
-  char *address, *raddress;
+  char *address, *raddress = NULL;
   char users[10240], file[10240];
-  char *new_address, *domain, *full_domain, *full_address;
+  char *new_address, *domain, *full_domain = NULL, *full_address = NULL;
   gcry_md_hd_t md5;
   gcry_error_t err;
   char *hash16 = NULL; 
@@ -1072,7 +1076,12 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
 	address = new_address;
     }
 
-    domain = strchr(address, '@') + 1;
+    domain = strchr(address, '@');
+    
+    if (domain == NULL)
+      goto out;
+
+    domain++;
     full_domain = malloc(strlen(domain) + 1);
     strcpy(full_domain, domain);
     full_address = malloc(strlen(address) + 1);
@@ -1108,7 +1117,8 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
   out:
     free(address);
     free(raddress);
-    free(full_domain);
+    if (full_domain)
+      free(full_domain);
     free(full_address);
     free(hash16);
     free(file_name);
