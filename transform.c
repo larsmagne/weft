@@ -32,7 +32,7 @@ typedef struct {
 formatter wanted_headers[] = {
   {"From", image_box_start},
   {"X-Face", xface_displayer},
-  {"X-Image-URL", x_image_url_displayer},
+  /* {"X-Image-URL", x_image_url_displayer}, */
   {"Face", face_displayer},
   {"From", from_picon_displayer},
   {"From", from_icon_displayer},
