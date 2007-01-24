@@ -107,7 +107,7 @@ void transform_text_plain(FILE *output, char *content,
     remove_leading_blank_lines(content);
     if (strlen(content) < MAX_TEXT_PLAIN_LENGTH) {
       limit_line_lengths(content);
-      filter(output, content);
+      filter(output, (unsigned char *)content);
     } else {
       simple_filter(output, content);
     }
@@ -117,7 +117,7 @@ void transform_text_plain(FILE *output, char *content,
 
 void transform_text_html(FILE *output, const char *content, 
 			  const char *output_file_name) {
-  char *clean;
+  unsigned char *clean;
   int length;
 
   ostring(output, "<p>\n");
@@ -156,7 +156,7 @@ void transform_binary(FILE *output, const char *content,
     uncached_name(output, bin_file_name);
     ostring(output, "\"></div>\n");
   } else if (strcmp(content_type, "application/pgp-signature")) {
-    ostring(output, "<div class=\"attachment\"><a href=\"http://cache.gmane.org/");
+    ostring(output, "<div class=\"attachment\"><a rel=\"nofollow\" href=\"http://cache.gmane.org/");
     uncached_name(output, bin_file_name);
     ostring(output, "\">Attachment");
     if (attachment_name != NULL) 
@@ -204,7 +204,7 @@ void transform_simple_part(FILE *output, const char *output_file_name,
 			   GMimePart* part) {
   const GMimeContentType* ct = 0;
   const gchar* content = 0;
-  long contentLen = 0;
+  unsigned long contentLen = 0;
   int i = 0;
   char content_type[128];
   const char *part_type;
@@ -400,7 +400,8 @@ void transform_message(FILE *output, const char *output_file_name,
     if (! strcmp(header, "Fromm")) /* This test is never true. */
       value = g_mime_message_get_sender(msg);
     else if (! strcmp(header, "Subject"))
-      value = g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
+      value = g_mime_utils_header_decode_text((unsigned char *)
+					      g_mime_message_get_subject(msg));
     else if (! strcmp(header, "Date")) {
       g_mime_message_get_date(msg, &time, &tz);
       value = NULL;
@@ -455,7 +456,8 @@ void transform_file(const char *input_file_name,
 
   if (msg != 0) {
     gsubject =
-      g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
+      g_mime_utils_header_decode_text((unsigned char *)
+				      g_mime_message_get_subject(msg));
     subject = malloc(strlen(gsubject) + 1);
     strcpy(subject, gsubject);
 
