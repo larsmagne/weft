@@ -1,7 +1,7 @@
 GLIB_CFLAGS = @GLIB_CFLAGS@
 GLIB_CONFIG = @GLIB_CONFIG@
 GLIB_LIBS = @GLIB_LIBS@
-GMIME_CONFIG = gmime-config
+GMIME_CONFIG = /usr/bin/gmime-config
 GMIME_CFLAGS = `$(GMIME_CONFIG) --cflags`
 GMIME_LIBS = `$(GMIME_CONFIG) --libs`
 
