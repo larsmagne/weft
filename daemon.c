@@ -33,7 +33,7 @@ static int port = 8014;
 
 int main(int argc, char **argv) {
   int wsd;
-  int addlen;
+  unsigned int addlen;
   char *s;
   char buffer[BUFFER_SIZE];
   char *expression[BUFFER_SIZE];
