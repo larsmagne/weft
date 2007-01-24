@@ -54,7 +54,7 @@ stripHtmlDoc(xmlDocPtr htmlDoc)
   A stripped document is output even if HTML parsing errors are
   encountered.
 */
-char *
+unsigned char *
 stripHtml(const char* htmlBuf, int htmlBufLen, int *length)
 {
   xmlDocPtr strippedDoc = 0;

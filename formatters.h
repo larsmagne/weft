@@ -30,7 +30,7 @@ void x_image_url_displayer (FILE *output, const char *url,
 			    const char *output_file_name);
 void ostring(FILE *output, const char *string);
 void simple_filter(FILE *output, const char *string);
-void filter(FILE *output, const char *string);
+void filter(FILE *output, const unsigned char *string);
 void compile_filters(void);
 void compile_words(void);
 
