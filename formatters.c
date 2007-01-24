@@ -56,7 +56,7 @@ char_filter_spec char_filters[] = {
 };
 
 string_filter_spec regex_filters[] = {
-  {"\\([-a-zA-Z0-9/+._]*\\)-[a-zA-Z0-9/+]*@public\\.gmane\\.org", "<a target=\"_top\" href=\"http://gmane.org/get-address.php?address=\\0\">\\1@...</a>"},
+  {"\\([-a-zA-Z0-9/+._]*\\)-[a-zA-Z0-9/+]*@public\\.gmane\\.org", "<a target=\"_top\" href=\"http://gmane.org/get-address.php?address=\\0\" rel=\"nofollow\">\\1@...</a>"},
   {"\\(\\*[a-zA-Z0-9.]*\\*\\)\\([^a-zA-Z0-9]\\)", "<b>\\1</b>\\2"},
   {"\\(/[a-zA-Z0-9.][a-zA-Z0-9.]*/\\)\\([^a-zA-Z0-9]\\)", "<i>\\1</i>\\2"},
   {"_\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(_[^a-zA-Z0-9]\\)", "_<u>\\1</u>\\2"},
@@ -91,9 +91,12 @@ char *cmalloc(int size) {
 
 char *base64_decode(const char *encoded) {
   char *decoded = malloc(strlen(encoded + 1));
-  int state = 0, save = 0;
+  int state = 0;
+  unsigned int save = 0;
 
-  g_mime_utils_base64_decode_step(encoded, strlen(encoded), decoded,
+  g_mime_utils_base64_decode_step((unsigned char *)encoded,
+				  strlen(encoded), 
+				  (unsigned char *)decoded,
 				  &state, &save);
 
   return decoded;
@@ -255,8 +258,6 @@ char *public_to_address(const char *in_public) {
   if ((p = strchr(new_address, '\t')) != NULL)
     *p = 0;
 
-  printf("new '%s'\n", new_address);
-
   free(local);
   free(base64);
   free(encrypted);
@@ -335,7 +336,7 @@ void output_quote(FILE *output, const char *string) {
     quote_char(c, output);
 }
 
-int string_begins(const char *string, char *match) {
+int string_begins(const unsigned char *string, char *match) {
   int skip = 0;
   while (*match != 0 && *string != 0 && *string == *match) {
     string++;
@@ -404,7 +405,7 @@ void osstring(const char *string, int filteredp) {
   scachep += strlen(string);
 }
 
-void filter(FILE *output, const char *string) {
+void filter(FILE *output, const unsigned char *string) {
   char c, prev = 0;
   int i;
   string_filter_spec *sfs;
@@ -544,11 +545,12 @@ void from_formatter (FILE *output, const char *from,
   if (from == "")
     from = "Unknown <nobody@nowhere.invalid>";
 
-  if (! strstr(from, "=?") && g_mime_utils_text_is_8bit(from, strlen(from)) &&
+  if (! strstr(from, "=?") && g_mime_utils_text_is_8bit((unsigned char *)from,
+							strlen(from)) &&
       default_charset != NULL) {
     cfrom = convert_to_utf8(from, default_charset);
     if (cfrom != NULL) {
-      from = g_mime_utils_8bit_header_encode(cfrom);
+      from = g_mime_utils_8bit_header_encode((unsigned char *)cfrom);
     }
   }
 
@@ -568,13 +570,13 @@ void from_formatter (FILE *output, const char *from,
       name = kname;
     }
 
-    filter(output, name);
+    filter(output, (unsigned char *)name);
     fprintf(output, " ");
     
     internet_address_set_name(iaddr, NULL);
     address = internet_address_to_string(iaddr, FALSE);
     fprintf(output, "&lt;");
-    filter(output, address);
+    filter(output, (unsigned char *)address);
     fprintf(output, "&gt;");
     free(address);
     if (kname)
@@ -595,7 +597,7 @@ void subject_formatter (FILE *output, const char *subject,
   char *csubject = NULL;
 
   if (! strstr(subject, "=?") && 
-      g_mime_utils_text_is_8bit(subject, strlen(subject)) &&
+      g_mime_utils_text_is_8bit((unsigned char *)subject, strlen(subject)) &&
       default_charset != NULL) {
     csubject = convert_to_utf8(subject, default_charset);
     if (csubject != NULL) 
@@ -605,13 +607,13 @@ void subject_formatter (FILE *output, const char *subject,
   ostring(output, "Subject: ");
   if (message_id != NULL) {
     ostring(output,
-	    "<a target=\"_top\" href=\"http://news.gmane.org/find-root.php?message_id=");
+	    "<a target=\"_top\" rel=\"nofollow\" href=\"http://news.gmane.org/find-root.php?message_id=");
     output_quote(output, message_id);
     ostring(output, "\">");
-    filter(output, subject);
+    filter(output, (unsigned char *)subject);
     ostring(output, "</a>");
   } else {
-    filter(output, subject);
+    filter(output, (unsigned char *)subject);
   }
   ostring(output, "<br>\n");
   if (csubject != NULL)
@@ -639,7 +641,7 @@ void newsgroups_formatter (FILE *output, const char *newsgroups,
     ostring(output, "<a href=\"http://news.gmane.org/");
     output_quote(output, group);
     ostring(output, "\" target=\"_top\">");
-    filter(output, group);
+    filter(output, (unsigned char *)group);
     ostring(output, "</a>");
   } while ((group = strtok(NULL, ", ")) != NULL);
 
@@ -660,7 +662,7 @@ void date_formatter (FILE *output, time_t time, int tz) {
 void expiry_formatter (FILE *output, const char *expiry_string, 
 		       const char *output_file_name) {
   ostring(output, "Expires: This article <a href=\"http://gmane.org/expiry.php\">expires</a> on ");
-  filter(output, expiry_string);
+  filter(output, (unsigned char *)expiry_string);
   ostring(output, "<br>\n");
 }
 
@@ -731,7 +733,8 @@ void xface_displayer (FILE *output, const char *xface,
 void face_displayer (FILE *output, const char *face, 
 		     const char *output_file_name) {
   char *decoded;
-  int state = 0, save = 0, ndecoded;
+  int state = 0, ndecoded;
+  unsigned int save = 0;
   char *suffix = "-face.png";
   char *png_file_name = malloc(strlen(output_file_name) +
 			       strlen(suffix) + 1);
@@ -743,7 +746,9 @@ void face_displayer (FILE *output, const char *face,
   decoded = malloc(strlen(face));
   
   sprintf(png_file_name, "%s%s", output_file_name, suffix);
-  ndecoded = g_mime_utils_base64_decode_step(face, strlen(face), decoded,
+  ndecoded = g_mime_utils_base64_decode_step((unsigned char *)face, 
+					     strlen(face), 
+					     (unsigned char *)decoded,
 					     &state, &save);
 
   if ((png = fopen(png_file_name, "w")) == NULL) {
