@@ -3,7 +3,7 @@ displaying on the web.
 
 Its main design goal was to be fast and simple.  
 
-It was written by and is copyright (c) 2003 Lars Magne Ingebrigtsen
+It was written by and is copyright (c) 2003-2011 Lars Magne Ingebrigtsen
 <larsi@gnus.org>.  It's released under the GNU General Public License,
 a copy of which is included in this package.
 
