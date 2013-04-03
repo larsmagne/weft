@@ -13,10 +13,10 @@ Debian package names here):
 libgmime-dev
 libglib1.2-dev
 libcompfaceg1-dev
-libmagick5-dev
+libmagick9-dev
 libxml2-dev
-xslt1-dev
-libgcrypt-dev
+libxslt1-dev
+libgcrypt11-dev
 
 Plus
 
