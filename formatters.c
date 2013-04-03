@@ -62,7 +62,7 @@ string_filter_spec regex_filters[] = {
   {"_\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(_[^a-zA-Z0-9]\\)", "_<u>\\1</u>\\2"},
   {"-\\([a-zA-Z0-9.][a-zA-Z0-9.]*\\)\\(-[^a-zA-Z0-9]\\)", "-<strike>\\1</strike>\\2"},
   {"https*://[^ \n\t\"<>()]*[^ \n\t\"<>(),.]", "<a rel=\"nofollow\" href=\"\\0\" target=\"_top\">\\0</a>"},
-  {"www\\.[^ \n\t\"<>()]*[^ \n\t\"<>().,]*", "<a rel=\"nofollow\" href=\"http://\\0\" target=\"_top\">\\0</a>"},
+  {"www\\.[^ \n\t\"<>()]*[^ \n\t\"<>().,]", "<a rel=\"nofollow\" href=\"http://\\0\" target=\"_top\">\\0</a>"},
   {"\n *\\( *\n\\)*\n", "\n\n"},
   {"<", "&lt;"},
   {">", "&gt;"},
