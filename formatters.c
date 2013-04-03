@@ -127,8 +127,10 @@ char *decrypt(const char *encrypted, int length) {
   char *decrypted = NULL;
   char *key = get_key();
 
-  if (key == NULL)
-    return NULL;
+  if (key == NULL) {
+    fprintf(stderr, "Can't find the decryption key file.\n");
+    exit(-2);
+  }
 
   decrypted = cmalloc(length + 1);
 
