@@ -1,15 +1,12 @@
-GLIB_CFLAGS = @GLIB_CFLAGS@
-GLIB_CONFIG = @GLIB_CONFIG@
-GLIB_LIBS = @GLIB_LIBS@
-GMIME_CONFIG = /usr/bin/gmime-config
-GMIME_CFLAGS = `$(GMIME_CONFIG) --cflags`
-GMIME_LIBS = `$(GMIME_CONFIG) --libs`
+GMIME_CONFIG = /usr/bin/pkg-config
+GMIME_CFLAGS = `$(GMIME_CONFIG) gmime-2.6 --cflags`
+GMIME_LIBS = `$(GMIME_CONFIG) gmime-2.6 --libs`
 
-HEADER_FILES=config.h ../mdb/util.h formatters.h
+HEADER_FILES=config.h util.h hash.h weaver.h input.h dispatch.h
 
-CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) $(shell xml2-config --cflags) $(shell xslt-config --cflags) -g -O3 -Wall
-LDFLAGS=@LDFLAGS@ $(GMIME_LIBS) $(shell xml2-config --libs) $(shell xslt-config --libs) -lcompface -lMagick -lgcrypt
-CC = @CC@ $(CPPFLAGS)
+CPPFLAGS=$(GMIME_CFLAGS) -I/usr/include/ImageMagick -I/usr/include/libxml2 -I/usr/include/libxslt -I/usr/local/include -g -O3 -Wall
+LDFLAGS=$(GMIME_LIBS) -lgcrypt -lMagickWand -lxml2 -lcompface -lxslt
+CC = gcc $(CPPFLAGS)
 
 all: weft weftd
 

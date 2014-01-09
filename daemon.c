@@ -40,16 +40,15 @@ int main(int argc, char **argv) {
   struct sockaddr_in sin, caddr;
   int nitems = 0;
   static int so_reuseaddr = TRUE;
-  int dirn, i;
+  int i;
   char *command;
   time_t start_time;
   FILE *client;
   char *file_name, *output_file_name;
   struct stat stat_buf;
 
-  g_mime_init(GMIME_INIT_FLAG_UTF8);
-
-  dirn = parse_args(argc, argv);
+  g_type_init();
+  g_mime_init(GMIME_ENABLE_RFC2047_WORKAROUNDS);
 
   compile_filters();
   compile_words();

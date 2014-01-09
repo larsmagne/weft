@@ -9,7 +9,6 @@
 #include <gmime/gmime.h>
 #include <sys/types.h>
 
-#include "configure.h"
 #include "config.h"
 #include "transform.h"
 #include "formatters.h"
@@ -22,18 +21,20 @@ int max_plain_line_length = MAX_PLAIN_LINE_LENGTH;
 int picon_number = 0;
 int binary_number = 0;
 char *default_charset = NULL;
+char *override_output_name = NULL;
 
 struct option long_options[] = {
   {"cache", 1, 0, 'c'},
   {"help", 1, 0, 'h'},
   {"default-charset", 1, 0, 'd'},
+  {"output", 1, 0, 'o'},
   {0, 0, 0, 0}
 };
 
 int parse_args(int argc, char **argv) {
   int option_index = 0, c;
   while (1) {
-    c = getopt_long(argc, argv, "hc::", long_options, &option_index);
+    c = getopt_long(argc, argv, "ho:c::", long_options, &option_index);
     if (c == -1)
       break;
 
@@ -44,6 +45,10 @@ int parse_args(int argc, char **argv) {
 
     case 'd':
       default_charset = strdup(optarg);
+      break;
+
+    case 'o':
+      override_output_name = optarg;
       break;
 
     case 'h':

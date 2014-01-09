@@ -10,16 +10,10 @@ a copy of which is included in this package.
 weft requires the following libraries to compile (and I've given the
 Debian package names here):
 
-libgmime-dev
-libglib1.2-dev
+libgmime2.6-dev
 libcompfaceg1-dev
-libmagick9-dev
+libmagickwand-dev
 libxml2-dev
 libxslt1-dev
 libgcrypt11-dev
-
-Plus
-
-picons-*
-
-if you want to display picons.
+picon-.*

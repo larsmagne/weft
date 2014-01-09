@@ -12,11 +12,11 @@
 #include <pwd.h>
 #include <sys/types.h>
 #include <compface.h>
-#include <magick/api.h>
 #include <sys/stat.h>
 #include <regex.h>
 #include <gcrypt.h>
 #include <ctype.h>
+#include <wand/MagickWand.h>
 
 #include "config.h"
 #include "weft.h"
@@ -94,10 +94,10 @@ char *base64_decode(const char *encoded) {
   int state = 0;
   unsigned int save = 0;
 
-  g_mime_utils_base64_decode_step((unsigned char *)encoded,
-				  strlen(encoded), 
-				  (unsigned char *)decoded,
-				  &state, &save);
+  g_mime_encoding_base64_decode_step((unsigned char *)encoded,
+				     strlen(encoded), 
+				     (unsigned char *)decoded,
+				     &state, &save);
 
   return decoded;
 }
@@ -135,7 +135,7 @@ char *decrypt(const char *encrypted, int length) {
   decrypted = cmalloc(length + 1);
 
   err = gcry_cipher_open(&context, GCRY_CIPHER_BLOWFISH,
-			     GCRY_CIPHER_MODE_CBC, 0);
+			 GCRY_CIPHER_MODE_CBC, 0);
   if (err)
     return NULL;
 
@@ -408,7 +408,7 @@ void osstring(const char *string, int filteredp) {
 }
 
 void filter(FILE *output, const unsigned char *string) {
-  char c, prev = 0;
+  char c;
   int i;
   string_filter_spec *sfs;
   char_filter_spec *cfs;
@@ -444,7 +444,6 @@ void filter(FILE *output, const unsigned char *string) {
   next:
     if (skip == 0) {
       string++;
-      prev = c;
       *cstring = c;
       osstring(cstring, 0);
     } else {
@@ -544,7 +543,7 @@ void from_formatter (FILE *output, const char *from,
   InternetAddressList *iaddr_list;
   char *address, *name, *kname = NULL, *cfrom = NULL;
 
-  if (from == "")
+  if (strlen(from) == 0)
     from = "Unknown <nobody@nowhere.invalid>";
 
   if (! strstr(from, "=?") && g_mime_utils_text_is_8bit((unsigned char *)from,
@@ -552,14 +551,14 @@ void from_formatter (FILE *output, const char *from,
       default_charset != NULL) {
     cfrom = convert_to_utf8(from, default_charset);
     if (cfrom != NULL) {
-      from = g_mime_utils_8bit_header_encode((unsigned char *)cfrom);
+      from = g_mime_utils_header_encode_text(cfrom);
     }
   }
 
   fprintf(output, "From: ");
 
-  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
-    iaddr = iaddr_list->address;
+  if ((iaddr_list = internet_address_list_parse_string(from)) != NULL) {
+    iaddr = internet_address_list_get_address(iaddr_list, 0);
 
     name = iaddr->name;
     if (name == NULL)
@@ -583,7 +582,7 @@ void from_formatter (FILE *output, const char *from,
     free(address);
     if (kname)
       free(kname);
-    internet_address_list_destroy(iaddr_list);
+    g_object_unref(iaddr_list);
   } else {
     fprintf(output, "nobody");
   }
@@ -678,7 +677,7 @@ void write_xface(char *png_file_name) {
     Initialize the image info structure and read an image.
   */
 
-  InitializeMagick(png_file_name);
+  MagickWandGenesis ();
   GetExceptionInfo(&exception);
 
   GetImageInfo(&image_info);
@@ -698,7 +697,7 @@ void write_xface(char *png_file_name) {
   DestroyConstitute();
   DestroyImage(image);
   DestroyExceptionInfo(&exception);
-  DestroyMagick();
+  MagickCoreTerminus();
 }
 
 void xface_displayer (FILE *output, const char *xface, 
@@ -707,13 +706,11 @@ void xface_displayer (FILE *output, const char *xface,
   char *suffix = "-xface.png";
   char *png_file_name = malloc(strlen(output_file_name) +
 			       strlen(suffix) + 1);
-  char *dp;
 
   if (xface == NULL)
     return;
 
   decoded = malloc(102400);
-  dp = decoded;
   strcpy(decoded, xface);
 
   sprintf(png_file_name, "%s%s", output_file_name, suffix);
@@ -748,10 +745,10 @@ void face_displayer (FILE *output, const char *face,
   decoded = malloc(strlen(face));
   
   sprintf(png_file_name, "%s%s", output_file_name, suffix);
-  ndecoded = g_mime_utils_base64_decode_step((unsigned char *)face, 
-					     strlen(face), 
-					     (unsigned char *)decoded,
-					     &state, &save);
+  ndecoded = g_mime_encoding_base64_decode_step((unsigned char *)face, 
+						strlen(face), 
+						(unsigned char *)decoded,
+						&state, &save);
 
   if ((png = fopen(png_file_name, "w")) == NULL) {
     perror("weft face");
@@ -885,8 +882,8 @@ void from_gravatar_displayer(FILE *output, const char *from,
   if (from == NULL)
     return;
 
-  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
-    iaddr = iaddr_list->address;
+  if ((iaddr_list = internet_address_list_parse_string(from)) != NULL) {
+    iaddr = internet_address_list_get_address(iaddr_list, 0);
 
     internet_address_set_name(iaddr, NULL);
     address = internet_address_to_string(iaddr, FALSE);
@@ -917,7 +914,7 @@ void from_gravatar_displayer(FILE *output, const char *from,
     
     free(address);
     free(hash16);
-    internet_address_list_destroy(iaddr_list);
+    g_object_unref(iaddr_list);
   }
 
 }
@@ -939,8 +936,8 @@ void from_picon_displayer(FILE *output, const char *from,
   snprintf(users, sizeof(users), "%s/%s/", picon_directory, 
 	   "users");
 
-  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
-    iaddr = iaddr_list->address;
+  if ((iaddr_list = internet_address_list_parse_string(from)) != NULL) {
+    iaddr = internet_address_list_get_address(iaddr_list, 0);
 
     internet_address_set_name(iaddr, NULL);
     address = internet_address_to_string(iaddr, FALSE);
@@ -986,7 +983,7 @@ void from_picon_displayer(FILE *output, const char *from,
   out:
     free(address);
     free(raddress);
-    internet_address_list_destroy(iaddr_list);
+    g_object_unref(iaddr_list);
   }
 }
 
@@ -1007,8 +1004,8 @@ void from_icon_displayer(FILE *output, const char *from,
   sprintf(file_name, "%s%s", output_file_name, suffix);
   snprintf(users, sizeof(users), "%s/", "/var/tmp/pictures");
 
-  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
-    iaddr = iaddr_list->address;
+  if ((iaddr_list = internet_address_list_parse_string(from)) != NULL) {
+    iaddr = internet_address_list_get_address(iaddr_list, 0);
 
     internet_address_set_name(iaddr, NULL);
     address = internet_address_to_string(iaddr, FALSE);
@@ -1047,7 +1044,7 @@ void from_icon_displayer(FILE *output, const char *from,
     free(address);
     free(raddress);
     free(file_name);
-    internet_address_list_destroy(iaddr_list);
+    g_object_unref(iaddr_list);
   }
 }
 
@@ -1071,8 +1068,8 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
   sprintf(file_name, "%s%s", output_file_name, suffix);
   snprintf(users, sizeof(users), "%s/", "/var/tmp/pictures");
 
-  if ((iaddr_list = internet_address_parse_string(from)) != NULL) {
-    iaddr = iaddr_list->address;
+  if ((iaddr_list = internet_address_list_parse_string(from)) != NULL) {
+    iaddr = internet_address_list_get_address(iaddr_list, 0);
 
     internet_address_set_name(iaddr, NULL);
     address = internet_address_to_string(iaddr, FALSE);
@@ -1129,7 +1126,7 @@ void from_cached_gravatar_displayer(FILE *output, const char *from,
     free(full_address);
     free(hash16);
     free(file_name);
-    internet_address_list_destroy(iaddr_list);
+    g_object_unref(iaddr_list);
   }
 }
 

@@ -15,8 +15,8 @@ int main(int argc, char **argv)
   struct stat stat_buf;
   char *file, *output_file_name;
 
-  g_mime_init(GMIME_INIT_FLAG_UTF8);
-  //g_mime_init(0);
+  g_type_init();
+  g_mime_init(GMIME_ENABLE_RFC2047_WORKAROUNDS);
 
   dirn = parse_args(argc, argv);
 
@@ -42,10 +42,14 @@ int main(int argc, char **argv)
       binary_number = 0;
 
       if (S_ISREG(stat_buf.st_mode)) {
-	output_file_name = get_cache_file_name(file);
+	if (override_output_name)
+	  output_file_name = override_output_name;
+	else
+	  output_file_name = get_cache_file_name(file);
 	ensure_directory(output_file_name);
 	transform_file(file, output_file_name);
-	free(output_file_name);
+	if (! override_output_name)
+	  free(output_file_name);
       } else {
 	fprintf(stderr, "%s is not a regular file; skipping.\n", file);
 	break;

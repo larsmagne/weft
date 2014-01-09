@@ -13,5 +13,6 @@ extern int max_plain_line_length;
 extern int picon_number;
 extern int binary_number;
 extern char *default_charset;
+extern char *override_output_name;
 
 #endif

@@ -202,16 +202,20 @@ char *convert_to_utf8(const char *string, const char *charset) {
 
 void transform_simple_part(FILE *output, const char *output_file_name,
 			   GMimePart* part) {
-  const GMimeContentType* ct = 0;
-  const gchar* content = 0;
+  GMimeContentType* ct = 0;
   unsigned long contentLen = 0;
   int i = 0;
   char content_type[128];
   const char *part_type;
-  char *mcontent, *p, *ccontent = NULL, *use_content;
+  char *mcontent, *p, *ccontent = NULL, *use_content, *decodedBuf;
   const char *charset = NULL;
+  GMimeDataWrapper *wrapper;
+  GMimeStream *stream;
+  int state = 0;
+  unsigned int save = 0;
+  const char *encoding;
 
-  ct = g_mime_part_get_content_type(part);
+  ct = g_mime_object_get_content_type(GMIME_OBJECT(part));
 
   if (ct == NULL ||
       ct->type == NULL ||
@@ -233,11 +237,36 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   for (p = content_type; *p; p++) 
     *p = tolower(*p);
 
-  content = g_mime_part_get_content(part, &contentLen);
+  wrapper = g_mime_part_get_content_object(part);
+  stream = g_mime_data_wrapper_get_stream(wrapper);
+  contentLen = g_mime_stream_length(stream);
   /* We copy over the content and zero-terminate it. */
   mcontent = malloc(contentLen + 1);
-  memcpy(mcontent, content, contentLen);
+  g_mime_stream_read(stream, mcontent, contentLen);
   *(mcontent + contentLen) = 0;
+
+  decodedBuf = malloc(contentLen + 1);
+  bzero(decodedBuf, contentLen + 1);
+
+  encoding = g_mime_content_encoding_to_string(g_mime_data_wrapper_get_encoding(wrapper));
+  if (encoding && ! strcmp(encoding, "quoted-printable")) {
+    g_mime_encoding_quoted_decode_step((unsigned char *)mcontent,
+				       contentLen, 
+				       (unsigned char*)decodedBuf, 
+				       &state, &save);
+    free(mcontent);
+    mcontent = decodedBuf;
+  } else if (encoding && ! strcmp(encoding, "base64")) {
+    g_mime_encoding_base64_decode_step((unsigned char*)mcontent,
+				       contentLen,
+				       (unsigned char*)decodedBuf, 
+				       &state, &save);
+    free(mcontent);
+    mcontent = decodedBuf;
+  } else
+    free(decodedBuf);
+  
+  g_object_unref(wrapper);
 
   /* Convert contents to utf-8.  If the conversion wasn't successful,
      we use the original contents. */
@@ -291,9 +320,11 @@ void format_file(FILE *output, char *type, const char *value) {
 void transform_multipart(FILE *output, const char *output_file_name,
 			 GMimeMultipart *mime_part) {
   const GMimeContentType* ct = NULL;
-  GList *child;
-  GMimePart *preferred = NULL;
+  GMimeObject *child;
+  GMimeObject *preferred = NULL;
   char *type, *subtype = NULL;
+  int number_of_children = g_mime_multipart_get_count(mime_part);
+  int nchild = 0;
 
   ct = g_mime_object_get_content_type(GMIME_OBJECT(mime_part));
 
@@ -307,9 +338,9 @@ void transform_multipart(FILE *output, const char *output_file_name,
     /* This is multipart/alternative, so we need to decide which
        part to output. */
       
-    child = mime_part->subparts;
-    while (child) {
-      ct = g_mime_part_get_content_type(child->data);
+    while (nchild < number_of_children) {
+      child = g_mime_multipart_get_part(mime_part, nchild++);
+      ct = g_mime_object_get_content_type(GMIME_OBJECT(child));
       if (ct == NULL) {
 	type = "text";
 	subtype = "plain";
@@ -320,48 +351,27 @@ void transform_multipart(FILE *output, const char *output_file_name,
 	  
       if (! strcmp(type, "multipart") ||
 	  ! strcmp(type, "message")) 
-	preferred = child->data;
+	preferred = child;
       else if (! strcmp(type, "text")) {
 	if (! strcmp(subtype, "html"))
-	  preferred = child->data;
+	  preferred = child;
 	else if (! strcmp(subtype, "plain") && preferred == NULL)
-	  preferred = child->data;
+	  preferred = child;
       }
-      child = child->next;
     }
 
-    if (! preferred) {
+    if (! preferred)
       /* Use the last child as the preferred. */
-      child = mime_part->subparts;
-      while (child) {
-	preferred = child->data;
-	child = child->next;
-      }
-    }
+      child = g_mime_multipart_get_part(mime_part, number_of_children);
 
     transform_part(output, output_file_name, (GMimeObject *) preferred);
 
-  } else if (! strcmp(subtype, "digest")) {
-    /* multipart/digest message. */
-    GMimeContentType* ct;
-    child = mime_part->subparts;
-    while (child) {
-      if (GMIME_IS_PART(child->data)) {
-	ct = g_mime_content_type_new_from_string("message/rfc822");
-	g_mime_part_set_content_type(GMIME_PART(child->data), ct);
-	transform_part(output, output_file_name, 
-		       (GMimeObject *) child->data);
-      }
-      child = child->next;
-    }
-      
   } else {
     /* Multipart mixed and related. */
-    child = mime_part->subparts;
-    while (child) {
+    while (nchild < number_of_children) {
+      child = g_mime_multipart_get_part(mime_part, nchild++);
       transform_part(output, output_file_name, 
-		     (GMimeObject *) child->data);
-      child = child->next;
+		     g_mime_multipart_get_part(mime_part, 0));
     }
   }
 }
@@ -394,21 +404,20 @@ void transform_message(FILE *output, const char *output_file_name,
   
   format_file(output, "start_head", "");
 
-  message_id = g_mime_message_get_header(msg, "Message-ID");
+  message_id = g_mime_message_get_message_id(msg);
 
   for (i = 0; (header = wanted_headers[i].header) != NULL; i++) {
     if (! strcmp(header, "Fromm")) /* This test is never true. */
       value = g_mime_message_get_sender(msg);
     else if (! strcmp(header, "Subject"))
-      value = g_mime_utils_header_decode_text((unsigned char *)
-					      g_mime_message_get_subject(msg));
+      value = g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
     else if (! strcmp(header, "Date")) {
       g_mime_message_get_date(msg, &time, &tz);
       value = NULL;
       if (time != 0) 
 	date_formatter(output, time, tz);
     } else
-      value = g_mime_message_get_header(msg, header);
+      value = g_mime_object_get_header((GMimeObject*) msg, header);
 
     if (value != NULL) {
       //printf("%s: %s\n", header, value);
@@ -452,21 +461,16 @@ void transform_file(const char *input_file_name,
 
   stream = g_mime_stream_fs_new(file);
   msg = g_mime_parser_construct_message(g_mime_parser_new_with_stream(stream));
-  g_mime_stream_unref(stream);
+  g_object_unref(stream);
 
   if (msg != 0) {
     gsubject =
-      g_mime_utils_header_decode_text((unsigned char *)
-				      g_mime_message_get_subject(msg));
+      g_mime_utils_header_decode_text(g_mime_message_get_subject(msg));
     subject = malloc(strlen(gsubject) + 1);
     strcpy(subject, gsubject);
 
     format_file(output, "preamble", subject);
-
     transform_message(output, output_file_name, msg);
-    
-    /* FIXME */
-    g_mime_object_unref(GMIME_OBJECT(msg));
 
     s = subject;
     while ((c = *s) != 0) {
