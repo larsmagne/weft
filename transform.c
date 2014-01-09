@@ -120,6 +120,9 @@ void transform_text_html(FILE *output, const char *content,
   unsigned char *clean;
   int length;
 
+  if (strlen(content) == 0)
+    return;
+
   ostring(output, "<p>\n");
   start_filter = 3;
   clean = stripHtml(content, strlen(content), &length);
@@ -370,8 +373,7 @@ void transform_multipart(FILE *output, const char *output_file_name,
     /* Multipart mixed and related. */
     while (nchild < number_of_children) {
       child = g_mime_multipart_get_part(mime_part, nchild++);
-      transform_part(output, output_file_name, 
-		     g_mime_multipart_get_part(mime_part, 0));
+      transform_part(output, output_file_name, child);
     }
   }
 }
