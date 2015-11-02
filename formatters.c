@@ -694,7 +694,8 @@ void write_xface(char *png_file_name) {
   //DescribeImage(image, stdout, 0);
 
   WriteImage(&image_info, image);
-  DestroyConstitute();
+  // FIXME: Replaced by something in newer magicks?
+  //DestroyConstitute();
   DestroyImage(image);
   DestroyExceptionInfo(&exception);
   MagickCoreTerminus();

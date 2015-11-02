@@ -47,7 +47,6 @@ int main(int argc, char **argv) {
   char *file_name, *output_file_name;
   struct stat stat_buf;
 
-  g_type_init();
   g_mime_init(GMIME_ENABLE_RFC2047_WORKAROUNDS);
 
   compile_filters();

@@ -15,7 +15,6 @@ int main(int argc, char **argv)
   struct stat stat_buf;
   char *file, *output_file_name;
 
-  g_type_init();
   g_mime_init(GMIME_ENABLE_RFC2047_WORKAROUNDS);
 
   dirn = parse_args(argc, argv);

@@ -1,4 +1,6 @@
 *.o
-TAGS
 weft
+weft-prod
+TAGS
+texts/key.txt
 weftd

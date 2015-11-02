@@ -240,13 +240,12 @@ void transform_simple_part(FILE *output, const char *output_file_name,
   for (p = content_type; *p; p++) 
     *p = tolower(*p);
 
+  /* Get the content of the part. */
   wrapper = g_mime_part_get_content_object(part);
   stream = g_mime_data_wrapper_get_stream(wrapper);
   contentLen = g_mime_stream_length(stream);
-  /* We copy over the content and zero-terminate it. */
-  mcontent = malloc(contentLen + 1);
+  mcontent = calloc(contentLen + 1, 1);
   g_mime_stream_read(stream, mcontent, contentLen);
-  *(mcontent + contentLen) = 0;
 
   decodedBuf = malloc(contentLen + 1);
   bzero(decodedBuf, contentLen + 1);
@@ -365,10 +364,26 @@ void transform_multipart(FILE *output, const char *output_file_name,
 
     if (! preferred)
       /* Use the last child as the preferred. */
-      child = g_mime_multipart_get_part(mime_part, number_of_children);
+      nchild = 0;
+      while (nchild < number_of_children)
+	preferred = g_mime_multipart_get_part(mime_part, nchild++);
+    }
 
-    transform_part(output, output_file_name, (GMimeObject *) preferred);
+    transform_part(output, output_file_name, preferred);
 
+  } else if (! strcmp(subtype, "digest")) {
+    /* multipart/digest message. */
+    //GMimeContentType* ct;
+    while (nchild < number_of_children) {
+      child = g_mime_multipart_get_part(mime_part, nchild++);
+      if (GMIME_IS_PART(child)) {
+	ct = g_mime_content_type_new_from_string("message/rfc822");
+	// FIXME
+	//g_mime_part_set_content_type(GMIME_PART(child), ct);
+	transform_part(output, output_file_name, child);
+      }
+    }
+      
   } else {
     /* Multipart mixed and related. */
     while (nchild < number_of_children) {
@@ -473,6 +488,9 @@ void transform_file(const char *input_file_name,
 
     format_file(output, "preamble", subject);
     transform_message(output, output_file_name, msg);
+    
+    /* FIXME */
+    g_object_unref(msg);
 
     s = subject;
     while ((c = *s) != 0) {
