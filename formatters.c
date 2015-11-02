@@ -15,8 +15,8 @@
 #include <sys/stat.h>
 #include <regex.h>
 #include <gcrypt.h>
+#include <magick/api.h>
 #include <ctype.h>
-#include <wand/MagickWand.h>
 
 #include "config.h"
 #include "weft.h"
@@ -677,7 +677,7 @@ void write_xface(char *png_file_name) {
     Initialize the image info structure and read an image.
   */
 
-  MagickWandGenesis ();
+  InitializeMagick(png_file_name);
   GetExceptionInfo(&exception);
 
   GetImageInfo(&image_info);
@@ -698,7 +698,7 @@ void write_xface(char *png_file_name) {
   //DestroyConstitute();
   DestroyImage(image);
   DestroyExceptionInfo(&exception);
-  MagickCoreTerminus();
+  DestroyMagick();
 }
 
 void xface_displayer (FILE *output, const char *xface, 

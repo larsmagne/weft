@@ -339,7 +339,7 @@ void transform_multipart(FILE *output, const char *output_file_name,
   if (! strcmp(subtype, "alternative")) {
     /* This is multipart/alternative, so we need to decide which
        part to output. */
-      
+    
     while (nchild < number_of_children) {
       child = g_mime_multipart_get_part(mime_part, nchild++);
       ct = g_mime_object_get_content_type(GMIME_OBJECT(child));
@@ -350,7 +350,7 @@ void transform_multipart(FILE *output, const char *output_file_name,
 	type = ct->type? ct->type: "text";
 	subtype = ct->subtype? ct->subtype: "plain";
       }
-	  
+      
       if (! strcmp(type, "multipart") ||
 	  ! strcmp(type, "message")) 
 	preferred = child;
@@ -361,8 +361,8 @@ void transform_multipart(FILE *output, const char *output_file_name,
 	  preferred = child;
       }
     }
-
-    if (! preferred)
+    
+    if (! preferred) {
       /* Use the last child as the preferred. */
       nchild = 0;
       while (nchild < number_of_children)
@@ -370,7 +370,7 @@ void transform_multipart(FILE *output, const char *output_file_name,
     }
 
     transform_part(output, output_file_name, preferred);
-
+    
   } else if (! strcmp(subtype, "digest")) {
     /* multipart/digest message. */
     //GMimeContentType* ct;
